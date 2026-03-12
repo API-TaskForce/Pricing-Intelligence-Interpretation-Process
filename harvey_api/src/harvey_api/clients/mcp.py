@@ -192,6 +192,117 @@ class MCPWorkflowClient:
         }
         return await self._call_tool("optimal", arguments)
 
+    async def run_min_time(
+        self,
+        *,
+        capacity_goal: int,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"capacity_goal": capacity_goal}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("min_time", arguments)
+
+    async def run_capacity_at(
+        self,
+        *,
+        time: str,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"time": time}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("capacity_at", arguments)
+
+    async def run_capacity_during(
+        self,
+        *,
+        end_instant: str,
+        start_instant: str = "0ms",
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "end_instant": end_instant,
+            "start_instant": start_instant,
+        }
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("capacity_during", arguments)
+
+    async def run_quota_exhaustion_threshold(
+        self,
+        *,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("quota_exhaustion_threshold", arguments)
+
+    async def run_rates(
+        self,
+        *,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("rates", arguments)
+
+    async def run_quotas(
+        self,
+        *,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("quotas", arguments)
+
+    async def run_limits(
+        self,
+        *,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("limits", arguments)
+
+    async def run_idle_time_period(
+        self,
+        *,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("idle_time_period", arguments)
+
     async def get_prompt_messages(self, prompt_name: str) -> List[Dict[str, str]]:
         session = await self.ensure_connected()
         try:

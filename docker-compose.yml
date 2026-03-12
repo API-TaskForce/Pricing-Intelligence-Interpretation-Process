@@ -1,5 +1,25 @@
 name: Pricing_Intelligence
 services:
+  prime4api:
+    image: rgavira123/prime4api:latest
+    container_name: prime4api
+    ports:
+      - "8003:8000"
+    environment:
+      - PYTHONUNBUFFERED=1
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://localhost:8000/')",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+
   choco-api:
     build:
       context: .
@@ -73,6 +93,7 @@ services:
     environment:
       - AMINT_BASE_URL=http://a-mint-api:8000
       - ANALYSIS_BASE_URL=http://analysis-api:3000
+      - PRIME4API_BASE_URL=http://prime4api:8000
       - CACHE_BACKEND=memory
       - LOG_LEVEL=INFO
       - HTTP_HOST=0.0.0.0
@@ -83,13 +104,20 @@ services:
     ports:
       - "8085:8085"
     healthcheck:
-      test: ["CMD", "python", "-c", "import socket; s=socket.create_connection(('127.0.0.1', 8085), 2); s.close()"]
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import socket; s=socket.create_connection(('127.0.0.1', 8085), 2); s.close()",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
     depends_on:
       - a-mint-api
       - analysis-api
+      - prime4api
     restart: unless-stopped
 
   harvey-api:

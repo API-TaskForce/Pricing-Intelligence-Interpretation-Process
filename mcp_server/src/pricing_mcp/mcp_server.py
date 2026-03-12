@@ -229,6 +229,149 @@ async def pricing2yaml_specification() -> str:
     return _PRICING2YAML_SPEC
 
 
+@mcp.tool()
+async def min_time(
+    capacity_goal: int,
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Compute the minimum time to reach a given API call capacity goal.
+
+    Either rate, quota, or both must be provided.
+    Rate / Quota shape: {"value": int, "unit": str, "period": str}
+    Returns: {"capacity_goal": int, "min_time": str}
+    """
+    logger.info(TOOL_INVOKED, tool="min_time", capacity_goal=capacity_goal)
+    result = await container.prime4api_client.min_time(
+        capacity_goal=capacity_goal,
+        rate=rate,
+        quota=quota,
+    )
+    logger.info(TOOL_COMPLETED, tool="min_time", min_time=result.get("min_time"))
+    return result
+
+
+@mcp.tool()
+async def capacity_at(
+    time: str,
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Compute the accumulated capacity available at a specific time instant.
+
+    Either rate, quota, or both must be provided.
+    Rate / Quota shape: {"value": int, "unit": str, "period": str}
+    Returns: {"time": str, "capacity": number}
+    """
+    logger.info(TOOL_INVOKED, tool="capacity_at", time=time)
+    result = await container.prime4api_client.capacity_at(
+        time=time, rate=rate, quota=quota,
+    )
+    logger.info(TOOL_COMPLETED, tool="capacity_at", capacity=result.get("capacity"))
+    return result
+
+
+@mcp.tool()
+async def capacity_during(
+    end_instant: str,
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+    start_instant: str = "0ms",
+) -> Dict[str, Any]:
+    """Compute the capacity generated during a defined time interval.
+
+    Either rate, quota, or both must be provided.
+    Rate / Quota shape: {"value": int, "unit": str, "period": str}
+    Returns: {"start_instant": str, "end_instant": str, "capacity": number}
+    """
+    logger.info(TOOL_INVOKED, tool="capacity_during", end_instant=end_instant, start_instant=start_instant)
+    result = await container.prime4api_client.capacity_during(
+        end_instant=end_instant, rate=rate, quota=quota, start_instant=start_instant,
+    )
+    logger.info(TOOL_COMPLETED, tool="capacity_during", capacity=result.get("capacity"))
+    return result
+
+
+@mcp.tool()
+async def quota_exhaustion_threshold(
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Compute the minimum time to exhaust each quota constraint at maximum rate.
+
+    Either rate, quota, or both must be provided.
+    Returns: {"thresholds": [{"quota": {...}, "exhaustion_threshold": str}]}
+    """
+    logger.info(TOOL_INVOKED, tool="quota_exhaustion_threshold")
+    result = await container.prime4api_client.quota_exhaustion_threshold(rate=rate, quota=quota)
+    logger.info(TOOL_COMPLETED, tool="quota_exhaustion_threshold")
+    return result
+
+
+@mcp.tool()
+async def rates(
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Retrieve the effective maximum consumption rates after pruning redundant limits.
+
+    Either rate, quota, or both must be provided.
+    Returns: {"rates": [{"value": number, "unit": str, "period": str}]}
+    """
+    logger.info(TOOL_INVOKED, tool="rates")
+    result = await container.prime4api_client.rates(rate=rate, quota=quota)
+    logger.info(TOOL_COMPLETED, tool="rates")
+    return result
+
+
+@mcp.tool()
+async def quotas(
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Retrieve the effective upper-limit quota boundaries after pruning redundant limits.
+
+    Either rate, quota, or both must be provided.
+    Returns: {"quotas": [{"value": number, "unit": str, "period": str}]}
+    """
+    logger.info(TOOL_INVOKED, tool="quotas")
+    result = await container.prime4api_client.quotas(rate=rate, quota=quota)
+    logger.info(TOOL_COMPLETED, tool="quotas")
+    return result
+
+
+@mcp.tool()
+async def limits(
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Retrieve all combined active limits (rates and quotas).
+
+    Either rate, quota, or both must be provided.
+    Returns: {"rates": [...], "quotas": [...]}
+    """
+    logger.info(TOOL_INVOKED, tool="limits")
+    result = await container.prime4api_client.limits(rate=rate, quota=quota)
+    logger.info(TOOL_COMPLETED, tool="limits")
+    return result
+
+
+@mcp.tool()
+async def idle_time_period(
+    rate: Optional[Any] = None,
+    quota: Optional[Any] = None,
+) -> Dict[str, Any]:
+    """Compute the idle/blocked time after exhausting each quota at maximum speed.
+
+    Either rate, quota, or both must be provided.
+    Returns: {"idle_times": [{"quota": {...}, "idle_time": str}]}
+    """
+    logger.info(TOOL_INVOKED, tool="idle_time_period")
+    result = await container.prime4api_client.idle_time_period(rate=rate, quota=quota)
+    logger.info(TOOL_COMPLETED, tool="idle_time_period")
+    return result
+
+
 def main() -> None:
     mcp.run(transport=settings.mcp_transport)
 

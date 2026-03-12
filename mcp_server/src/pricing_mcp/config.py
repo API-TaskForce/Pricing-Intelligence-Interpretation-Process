@@ -26,6 +26,8 @@ class Settings(BaseSettings):
         default=None, description="API key for Analysis API if enforced"
     )
 
+    prime4api_base_url: AnyHttpUrl = Field(..., description="Prime4API base URL")
+
     # Async behaviour
     http_timeout_seconds: float = 60.0
     max_retry_attempts: int = 3
