@@ -1,0 +1,70 @@
+name: docker_publish
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      harvey: ${{ steps.filter.outputs.harvey }}
+      mcp: ${{ steps.filter.outputs.mcp }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect changed directories
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            harvey:
+              - 'harvey_api/**'
+            mcp:
+              - 'mcp_server/**'
+
+  build-harvey:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.harvey == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push harvey-api
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: ./harvey_api/Dockerfile
+          push: true
+          tags: danielruiz13524/pi-harvey:latest
+
+  build-mcp:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.mcp == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push mcp-server
+        uses: docker/build-push-action@v5
+        with:
+          context: ./mcp_server
+          file: ./mcp_server/Dockerfile
+          push: true
+          tags: danielruiz13524/pi-mcp-server:latest
