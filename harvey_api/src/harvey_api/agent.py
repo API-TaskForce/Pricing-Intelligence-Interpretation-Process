@@ -17,7 +17,22 @@ from .llm_client import (
 )
 
 logger = get_logger(__name__)
-ALLOWED_ACTIONS = {"optimal", "subscriptions", "summary", "iPricing", "validate"}
+
+# SaaS pricing tools — require a pricing URL or uploaded YAML to operate.
+PRICING_ACTIONS = {"optimal", "subscriptions", "summary", "iPricing", "validate"}
+
+# API-analysis tools — operate without any pricing context.
+API_ACTIONS = {
+    "min_time", "capacity_at", "capacity_during",
+    "quota_exhaustion_threshold", "rates", "quotas", "limits",
+    "idle_time_period",
+}
+
+ALLOWED_ACTIONS = PRICING_ACTIONS | API_ACTIONS
+
+# Set of action names that must have a pricing context (URL or YAML) available.
+ACTION_REQUIRES_CONTEXT = PRICING_ACTIONS
+
 SPEC_RESOURCE_ID = "resource://pricing/specification"
 PLAN_REQUEST_MAX_ATTEMPTS = 3
 URL_PATTERN = re.compile(r"https?://[^\s\"'<>]+")
@@ -30,11 +45,24 @@ PLAN_RESPONSE_FORMAT_INSTRUCTIONS = """Respond with a single JSON object that ma
 }
 Action entries:
 - A string ("summary", "iPricing", "validate") OR
-- An object with at least {"name": "subscriptions"|"optimal"|"summary"|"iPricing"|"validate"} and optional keys:
+- A SaaS pricing object with at least {"name": "subscriptions"|"optimal"|"summary"|"iPricing"|"validate"} and optional keys:
     • "objective": "minimize"|"maximize" (only for optimal)
     • "pricing_url": string (required per action when multiple pricing contexts exist)
     • "filters": FilterCriteria (only include when the specific action needs filtering)
     • "solver": "minizinc"|"choco" (when the specific action needs to pick a solver)
+- An API analysis object (Prime4API). Common shape:
+    • RateObject / QuotaObject shape: {"value": number, "unit": string, "period": string}
+    • Example period values: "1month", "1day", "1h", "30min"
+    • None of the API analysis tools require pricing_url or uploaded YAML.
+    • Tool-specific schemas:
+      - {"name": "min_time", "capacity_goal": number, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "capacity_at", "time": string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "capacity_during", "end_instant": string, "start_instant"?: string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "quota_exhaustion_threshold", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "rates", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "quotas", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "limits", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "idle_time_period", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
 FilterCriteria shape (when used inside an action object):
 {
   "minPrice"?: number,
@@ -69,6 +97,7 @@ class PlannedAction:
     pricing_url: Optional[str] = None
     filters: Optional[Dict[str, Any]] = None  # Action-scoped filters (subscriptions/optimal only)
     solver: Optional[str] = None  # Action-scoped solver (subscriptions/optimal/validate)
+    params: Optional[Dict[str, Any]] = None  # Extra params for context-free actions (e.g., min_time)
 
 DEFAULT_PLAN_PROMPT = """You are H.A.R.V.E.Y., an expert AI agent designed to reason about pricing models using the ReAct pattern (Reasoning + Acting).
 Your goal is to create a precise execution plan to answer the user's question based on the provided pricing context (URLs or uploaded Pricing2Yaml files).
@@ -142,6 +171,65 @@ Use these descriptions to accurately interpret user intent and to map it to the 
   - Output: Validation status and error messages.
   - Use when: The user asks "is this valid?", "check for errors", "verify the model/pricing", or "fix/find any inconsistencies".
 
+### API Analysis Tools (Prime4API — no pricing context required)
+
+- **"min_time"**: Computes the minimum time to reach a given API call capacity goal under rate and quota constraints.
+  - **Inputs:** `capacity_goal` (required, integer — the number of API calls to reach), `rate` (optional), `quota` (optional).
+    - Rate / Quota shape: `{"value": number, "unit": string, "period": string}` — e.g., `{"value": 100, "unit": "request", "period": "1month"}`.
+  - Either rate, quota, or both must be provided to constrain the calculation.
+  - **Output:** `{"capacity_goal": number, "min_time": string}` — e.g., `{"capacity_goal": 500, "min_time": "4day"}`.
+  - **Semantics:** The model grants capacity at t=0, so the first period's capacity is available immediately. For example, 500 requests at 100/day resolves to 4day (days 0–3), not 5.
+  - **Use when:** The user asks how long it takes to reach a certain number of API calls, or how much time a rate/quota limit implies.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"capacity_at"**: Computes the accumulated capacity available at a specific time instant.
+  - **Inputs:** `time` (required, string — e.g., '5day'), `rate` (optional), `quota` (optional).
+  - **Output:** `{"time": string, "capacity": number}`.
+  - **Semantics:** Closed interval `[0, T]`. Assumes consumption starts with an immediate "burst" at exactly `t=0`, meaning the first period's capacity is instantly available. For example, if the limit is 100/day, `capacity_at("5day")` evaluates to exactly 600 requests (`100 at t=0` + 500 across 5 days). This represents real-world cumulative possibilities from scratch.
+  - **Use when:** The user asks general questions like "How many API calls can I make in X days/hours?". This is the **default and safest** tool for capacity estimation.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"capacity_during"**: Computes the capacity generated during a defined time interval.
+  - **Inputs:** `end_instant` (required, string), `start_instant` (optional, string — defaults to '0ms'), `rate` (optional), `quota` (optional).
+  - **Output:** `{"start_instant": string, "end_instant": string, "capacity": number}`.
+  - **Semantics:** Open/semi-open interval `(start, end]`. **Crucial distinction:** Because it mathematically excludes the initial `t=0` burst of the `start_instant`, asking for `capacity_during(5 days)` will effectively yield the cumulative capacity of what a human might think of as "4 days continuous running". It calculates exactly how much *new* capacity becomes available precisely between the two instants.
+  - **Use when:** You are evaluating a sliding time window that explicitly does **not** start at the absolute beginning (e.g., "From day 2 to day 7, how much is recovered?"). **Do NOT use** for general "how much in 5 days?" questions (use `capacity_at` instead).
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"rates"**: Retrieves the effective maximum consumption rates.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"rates": [{"value": number, "unit": string, "period": string}]}`.
+  - **Semantics:** The engine automatically evaluates all input rates and discards any that are unreachable, redundant, or mathematically superseded by stricter limits. The returned list constitutes the mathematical "truth" of the base consumption speed.
+  - **Use when:** The user asks "What is the absolute maximum speed or rate I can consume this API at?".
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"quotas"**: Retrieves the effective upper limit boundaries (quotas).
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"quotas": [{"value": number, "unit": string, "period": string}]}`.
+  - **Semantics:** Evaluates all input quotas and discards any that are mathematically rendered irrelevant by other stricter limits.
+  - **Use when:** The user asks questions regarding "hard caps", "monthly limits", or "long-term boundaries" that prevent continuous consumption.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"limits"**: Retrieves all combined active limits (rates and quotas).
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"rates": [...], "quotas": [...]}`.
+  - **Use when:** You need to analyze the full topology of limits at once.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"quota_exhaustion_threshold"**: Computes the absolute minimum time required to hit and exhaust each quota constraint.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"thresholds": [{"quota": {...}, "exhaustion_threshold": string}]}`.
+  - **Semantics:** Automatically calculates the time required to collide with the quota's upper limit by consuming uninterruptedly at the maximum allowed base rate. It calculates the raw continuous consumption time, factoring in pauses induced by intermediate limits.
+  - **Use when:** The user asks "How fast can I blow through my quota going at maximum speed?", or when evaluating the time length of a continuous sequence of API calls. You can cross-reference this with the base rate to deduce uninterrupted burst times.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"idle_time_period"**: Computes the "dead" or idle time spent waiting for a quota period to reset after exhausting it as fast as possible.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"idle_times": [{"quota": {...}, "idle_time": string}]}`.
+  - **Semantics:** Uses the strict formula `idle_time = quota_period - exhaustion_threshold`. It calculates the exact amount of "dead" or "blocked" time the user suffers until the quota cycle resets, assuming they exhausted the quota as quickly as possible.
+  - **Use when:** The user asks "How long will I be blocked from making requests?", "What is the penalty time?", or "How long must I wait after hitting my limit?".
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
 ### Planning Strategy
 1. **Analyze**: Understand the user's intent.
 2. **Check Content**: If a provided URL does not have corresponding YAML content in the context, you MUST plan an `iPricing` action to fetch it.
@@ -191,6 +279,7 @@ You have executed a pricing analysis plan and now need to formulate the final an
 - **Contextualize**: Use the Pricing Context to add descriptions or details that might not be in the tool output (e.g., what "SSO" actually entails if described in the YAML).
 - **Fallback**: If tools failed or returned empty results, explain what happened based on the context.
 - **Specification**: If `use_pricing2yaml_spec` was true, refer to the provided specification excerpt for authoritative answers.
+- **Authoritative tool results**: For deterministic API analysis tools (e.g., `min_time`, `capacity_at`, `capacity_during`, `quota_exhaustion_threshold`, `rates`, `quotas`, `limits`, `idle_time_period`), treat the tool's returned value as the definitive, mathematically correct answer. Do NOT perform independent informal calculations or suggest alternative values that contradict the tool output. If the result seems counterintuitive, explain the model's conventions as described in the plan — do not second-guess the computation. Do NOT add hypothetical caveats about alternative window-reset semantics, alternate interpretations, or different timing conventions unless the user explicitly asks about those assumptions.
 """
 
 
@@ -801,6 +890,27 @@ class HarveyAgent:
             warn("harvey.agent.invalid_action_object", requested=entry)
             return None
 
+        # Context-free API action — extract its specific params and return early.
+        if name in API_ACTIONS:
+            params: Dict[str, Any] = {}
+            # min_time specific
+            if entry.get("capacity_goal") is not None:
+                params["capacity_goal"] = entry["capacity_goal"]
+            # capacity_at specific
+            if entry.get("time") is not None:
+                params["time"] = entry["time"]
+            # capacity_during specific
+            if entry.get("end_instant") is not None:
+                params["end_instant"] = entry["end_instant"]
+            if entry.get("start_instant") is not None:
+                params["start_instant"] = entry["start_instant"]
+            # common rate/quota
+            if entry.get("rate") is not None:
+                params["rate"] = entry["rate"]
+            if entry.get("quota") is not None:
+                params["quota"] = entry["quota"]
+            return PlannedAction(name=name, params=params or None)
+
         objective = entry.get("objective")
         if objective not in (None, "minimize", "maximize"):
             warn("harvey.agent.invalid_objective", action=name, objective=objective)
@@ -932,7 +1042,6 @@ class HarveyAgent:
         yaml_alias_map: Dict[str, str],
     ) -> None:
         total_contexts = len(available_urls) + len(yaml_alias_map)
-        required_actions = {"subscriptions", "optimal", "summary", "iPricing", "validate"}
         for action in actions:
             reference = action.pricing_url or default_reference
             if reference and not self._is_known_reference(reference, available_urls, yaml_alias_map):
@@ -940,7 +1049,7 @@ class HarveyAgent:
                     f"Unknown pricing context '{reference}'. Use one of: {available_urls + list(yaml_alias_map.keys())}."
                 )
 
-            if action.name in required_actions:
+            if action.name in ACTION_REQUIRES_CONTEXT:
                 self._assert_context_available(
                     reference,
                     total_contexts,
@@ -981,6 +1090,10 @@ class HarveyAgent:
         reference = action.pricing_url or default_reference
         if reference:
             return reference
+
+        # Context-free actions (e.g., min_time) don't need a pricing reference at all.
+        if action.name not in ACTION_REQUIRES_CONTEXT:
+            return None
 
         total_contexts = len(available_urls) + len(yaml_alias_map)
         if total_contexts == 0:
@@ -1065,6 +1178,58 @@ class HarveyAgent:
     ) -> Dict[str, Any]:
         resolved_objective = action.objective or objective
         effective_solver = action.solver or "minizinc"
+        if action.name == "min_time":
+            p = action.params or {}
+            return await self._workflow.run_min_time(
+                capacity_goal=p.get("capacity_goal", 1),
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "capacity_at":
+            p = action.params or {}
+            return await self._workflow.run_capacity_at(
+                time=p.get("time", "0ms"),
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "capacity_during":
+            p = action.params or {}
+            return await self._workflow.run_capacity_during(
+                end_instant=p.get("end_instant", "0ms"),
+                start_instant=p.get("start_instant", "0ms"),
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "quota_exhaustion_threshold":
+            p = action.params or {}
+            return await self._workflow.run_quota_exhaustion_threshold(
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "rates":
+            p = action.params or {}
+            return await self._workflow.run_rates(
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "quotas":
+            p = action.params or {}
+            return await self._workflow.run_quotas(
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "limits":
+            p = action.params or {}
+            return await self._workflow.run_limits(
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
+        if action.name == "idle_time_period":
+            p = action.params or {}
+            return await self._workflow.run_idle_time_period(
+                rate=p.get("rate"),
+                quota=p.get("quota"),
+            )
         if action.name == "summary":
             return await self._workflow.run_summary(url=url, yaml_content=yaml_content, refresh=False)
         if action.name == "iPricing":
