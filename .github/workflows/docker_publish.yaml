@@ -45,7 +45,7 @@ jobs:
           context: .
           file: ./harvey_api/Dockerfile
           push: true
-          tags: danielruiz13524/pi-harvey:latest
+          tags: daniruiz13524/pi-harvey:latest
 
   build-mcp:
     needs: detect-changes
@@ -67,4 +67,4 @@ jobs:
           context: ./mcp_server
           file: ./mcp_server/Dockerfile
           push: true
-          tags: danielruiz13524/pi-mcp-server:latest
+          tags: daniruiz13524/pi-mcp-server:latest
