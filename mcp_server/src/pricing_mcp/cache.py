@@ -8,7 +8,7 @@ from typing import TYPE_CHECKING, Any, Optional
 try:
     from redis.asyncio import Redis  # type: ignore import-not-found
 except Exception:  # pragma: no cover - fallback when redis not installed
-    Redis = None  # type: ignore[assignment]
+    Redis = None  
 
 if TYPE_CHECKING:
     from redis.asyncio import Redis as RedisType  # pragma: no cover

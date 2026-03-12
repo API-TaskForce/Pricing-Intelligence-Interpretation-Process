@@ -18,7 +18,7 @@ from .llm_client import (
 
 logger = get_logger(__name__)
 
-# SaaS pricing tools — require a pricing URL or uploaded YAML to operate on.
+# SaaS pricing tools — require a pricing URL or uploaded YAML to operate.
 PRICING_ACTIONS = {"optimal", "subscriptions", "summary", "iPricing", "validate"}
 
 # API-analysis tools — operate without any pricing context.
