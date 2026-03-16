@@ -19,4 +19,4 @@ jobs:
           password: ${{ secrets.DROPLET_PASSWORD }}
 
           script: |
-            /root/deploy_s3.sh
+            /root/deploy.sh
