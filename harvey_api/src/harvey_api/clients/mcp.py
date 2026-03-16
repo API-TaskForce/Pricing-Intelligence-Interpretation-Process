@@ -303,6 +303,29 @@ class MCPWorkflowClient:
             arguments["quota"] = quota
         return await self._call_tool("idle_time_period", arguments)
 
+    async def run_evaluate_api_datasheet(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: str,
+        operation: str,
+        operation_params: Optional[Dict[str, Any]] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "plan_name": plan_name,
+            "operation": operation,
+        }
+        if operation_params is not None:
+            arguments["operation_params"] = operation_params
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("evaluate_api_datasheet", arguments)
+
     async def get_prompt_messages(self, prompt_name: str) -> List[Dict[str, str]]:
         session = await self.ensure_connected()
         try:
@@ -333,6 +356,16 @@ class MCPWorkflowClient:
         except Exception as exc:  # pragma: no cover - protocol failure
             logger.error("harvey.mcp.tool.failed", tool=name, error=str(exc))
             raise MCPClientError(f"Tool '{name}' failed") from exc
+
+        if getattr(response, "isError", False):
+            error_items = self._extract_content_items(response)
+            error_text = " | ".join(
+                item.get("text", "")
+                for item in error_items
+                if isinstance(item, dict) and item.get("type") == "text" and item.get("text")
+            )
+            logger.error("harvey.mcp.tool.server_error", tool=name, error=error_text)
+            raise MCPClientError(f"Tool '{name}' returned an error: {error_text}")
 
         payload = self._extract_json_payload(name, response)
         logger.info("harvey.mcp.tool.success", tool=name)
