@@ -372,6 +372,32 @@ async def idle_time_period(
     return result
 
 
+@mcp.tool()
+async def evaluate_api_datasheet(
+    datasheet_source: str,
+    plan_name: str,
+    operation: str,
+    operation_params: Optional[Dict[str, Any]] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Evaluate an API datasheet to resolve dynamic API constraints.
+
+    Returns: {"operation": str, "operation_params": dict, "results": list}
+    """
+    logger.info(TOOL_INVOKED, tool="evaluate_api_datasheet", plan_name=plan_name, operation=operation)
+    result = await container.prime4api_client.evaluate_api_datasheet(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        operation=operation,
+        operation_params=operation_params,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="evaluate_api_datasheet")
+    return result
+
+
 def main() -> None:
     mcp.run(transport=settings.mcp_transport)
 

@@ -222,6 +222,31 @@ class Prime4APIClient:
             body["quota"] = _normalise_limit_payload(quota)
         return await self._post(url, body, log_name="idle_time_period")
 
+    async def evaluate_api_datasheet(
+        self,
+        datasheet_source: str,
+        plan_name: str,
+        operation: str,
+        operation_params: Optional[Dict[str, Any]] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/evaluate"""
+        url = f"{self._base_url}/api/v1/datasheet/evaluate"
+        body: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "plan_name": plan_name,
+            "operation": operation,
+        }
+        if operation_params is not None:
+            body["operation_params"] = operation_params
+        if endpoint_path is not None:
+            body["endpoint_path"] = endpoint_path
+        if alias is not None:
+            body["alias"] = alias
+            
+        return await self._post(url, body, log_name="evaluate_api_datasheet")
+
     async def _post(
         self,
         url: str,

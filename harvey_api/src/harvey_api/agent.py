@@ -21,11 +21,10 @@ logger = get_logger(__name__)
 # SaaS pricing tools — require a pricing URL or uploaded YAML to operate.
 PRICING_ACTIONS = {"optimal", "subscriptions", "summary", "iPricing", "validate"}
 
-# API-analysis tools — operate without any pricing context.
 API_ACTIONS = {
     "min_time", "capacity_at", "capacity_during",
     "quota_exhaustion_threshold", "rates", "quotas", "limits",
-    "idle_time_period",
+    "idle_time_period", "evaluate_api_datasheet",
 }
 
 ALLOWED_ACTIONS = PRICING_ACTIONS | API_ACTIONS
@@ -63,6 +62,7 @@ Action entries:
       - {"name": "quotas", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
       - {"name": "limits", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
       - {"name": "idle_time_period", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
+      - {"name": "evaluate_api_datasheet", "datasheet_source": string, "plan_name": string (REQUIRED — extract from user context, e.g. "starter"), "operation": string, "endpoint_path"?: string, "alias"?: string, "operation_params"?: object}
 FilterCriteria shape (when used inside an action object):
 {
   "minPrice"?: number,
@@ -229,6 +229,11 @@ Use these descriptions to accurately interpret user intent and to map it to the 
   - **Semantics:** Uses the strict formula `idle_time = quota_period - exhaustion_threshold`. It calculates the exact amount of "dead" or "blocked" time the user suffers until the quota cycle resets, assuming they exhausted the quota as quickly as possible.
   - **Use when:** The user asks "How long will I be blocked from making requests?", "What is the penalty time?", or "How long must I wait after hitting my limit?".
   - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"evaluate_api_datasheet"**: Evaluates API constraints directly from a raw Datasheet YAML or URL.
+  - **Inputs:** `datasheet_source` (required, raw YAML or URL - MUST BE SET TO THE `pricing_url` variable OF THE CURRENT CONTEXT, usually "uploaded://pricing" if you have a YAML uploaded), `plan_name` (required, MUST be extracted from the user's message or the YAML — e.g. if the user says "I'm on the starter plan" set `plan_name: "starter"`; NEVER set it to null), `operation` (required, must be one of: min_time, capacity_at, capacity_during, quota_exhaustion_threshold, rates, quotas, limits, idle_time_period), `operation_params` (optional, object with extra params for the sub-operation like capacity_goal), `endpoint_path` (optional), `alias` (optional).
+  - **Rules:** When the user provides a Datasheet in raw YAML or a URL, you MUST NEVER call the standalone tools (e.g., `{"name": "min_time"}`). If you are dealing with a Datasheet context, ALWAYS output `{"name": "evaluate_api_datasheet", "datasheet_source": "uploaded://pricing" (OR YOUR URL), "operation": "min_time", ...}` instead. Prime4API will extract the exact rates and quotas from the Datasheet and do the math.
+  - **CRITICAL — multiple operations:** If the user asks for the same calculation for more than one scenario (e.g. two different capacity goals, two different endpoints, or "for all reputations"), emit **one `evaluate_api_datasheet` action per scenario** with the appropriate `endpoint_path`, `alias`, and `operation_params`. Never merge multiple scenarios into one action.
 
 ### Planning Strategy
 1. **Analyze**: Understand the user's intent.
@@ -880,10 +885,27 @@ class HarveyAgent:
         if isinstance(entry, str):
             return PlannedAction(name=entry) if entry in ALLOWED_ACTIONS else None
 
-        # Must be a dict from here
-        if not isinstance(entry, dict):
-            warn("harvey.agent.unrecognized_action_entry", entry=entry)
-            return None
+        # SILENT OVERRIDE: If the LLM incorrectly tries to use a standalone abstract tool
+        # but the request is associated with a context, forcibly convert it to evaluate_api_datasheet.
+        if entry.get("name") in API_ACTIONS and entry.get("name") != "evaluate_api_datasheet":
+            # We delay populating the actual datasheet_source to _run_single_action,
+            # but we tag it to ensure it gets converted.
+            original_name = entry["name"]
+            entry["operation"] = original_name
+            entry["name"] = "evaluate_api_datasheet"
+            
+            # Move specific parameters into operation_params if needed
+            op_params = {}
+            if "capacity_goal" in entry:
+                op_params["capacity_goal"] = entry.pop("capacity_goal")
+            if "time" in entry:
+                op_params["time"] = entry.pop("time")
+            if op_params:
+                entry["operation_params"] = op_params
+            
+            # Note: We deliberately leave datasheet_source out if it wasn't provided,
+            # so the auto-injector in _run_single_action handles it.
+            warn("harvey.agent.overrode_standalone_tool", original=original_name)
 
         name = entry.get("name")
         if name not in ALLOWED_ACTIONS:
@@ -893,6 +915,18 @@ class HarveyAgent:
         # Context-free API action — extract its specific params and return early.
         if name in API_ACTIONS:
             params: Dict[str, Any] = {}
+            if name == "evaluate_api_datasheet":
+                params["datasheet_source"] = entry.get("datasheet_source")
+                params["plan_name"] = entry.get("plan_name")
+                params["operation"] = entry.get("operation")
+                if "operation_params" in entry:
+                    params["operation_params"] = entry.get("operation_params")
+                if "endpoint_path" in entry:
+                    params["endpoint_path"] = entry.get("endpoint_path")
+                if "alias" in entry:
+                    params["alias"] = entry.get("alias")
+                return PlannedAction(name=name, params=params)
+
             # min_time specific
             if entry.get("capacity_goal") is not None:
                 params["capacity_goal"] = entry["capacity_goal"]
@@ -1012,6 +1046,7 @@ class HarveyAgent:
                 url=action_url,
                 objective=objective,
                 yaml_content=action_yaml,
+                default_reference=context_reference or default_reference,
             )
 
             step_record: Dict[str, Any] = {
@@ -1175,9 +1210,34 @@ class HarveyAgent:
         url: Optional[str],
         objective: str,
         yaml_content: Optional[str],
+        default_reference: Optional[str] = None,
     ) -> Dict[str, Any]:
         resolved_objective = action.objective or objective
         effective_solver = action.solver or "minizinc"
+        if action.name == "evaluate_api_datasheet":
+            p = action.params or {}
+            source = p.get("datasheet_source")
+            if not source and default_reference is not None:
+                source = default_reference
+            elif not source and url is not None:
+                source = url
+            # If yaml_content is available and source is not an external URL, pass the
+            # actual YAML text directly. Prime4API cannot resolve aliases like
+            # "uploaded://pricing" — yaml.safe_load would treat the alias as a YAML
+            # scalar (a plain string) and then fail when trying to access .get("plans").
+            if yaml_content is not None and (
+                source is None or not source.startswith("http")
+            ):
+                source = yaml_content
+
+            return await self._workflow.run_evaluate_api_datasheet(
+                datasheet_source=source,
+                plan_name=p.get("plan_name") or "default",
+                operation=p.get("operation") or "min_time",
+                operation_params=p.get("operation_params"),
+                endpoint_path=p.get("endpoint_path"),
+                alias=p.get("alias"),
+            )
         if action.name == "min_time":
             p = action.params or {}
             return await self._workflow.run_min_time(
