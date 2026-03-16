@@ -1,0 +1,22 @@
+name: Deploy Preproduction
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    name: Connect & Deploy
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Ejecutar comandos de despliegue por SSH
+        uses: appleboy/ssh-action@v1.0.0
+        with:
+          host: ${{ secrets.DROPLET_IP }}
+          username: root
+          password: ${{ secrets.DROPLET_PASSWORD }}
+
+          script: |
+            /root/deploy_s3.sh
