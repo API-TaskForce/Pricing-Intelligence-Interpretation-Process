@@ -4,6 +4,7 @@ import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
 import type {
   ChatMessage,
+  ContextMode,
   PricingContextItem,
   PromptPreset,
   ContextInputType,
@@ -40,12 +41,21 @@ const initTheme = (): ThemeType => {
     : "light";
 };
 
+// Persist context mode across sessions so users don't have to re-select every time.
+const initMode = (): ContextMode => {
+  if (typeof window === "undefined") return "all";
+  const stored = window.localStorage.getItem("pricing-mode");
+  if (stored === "saas" || stored === "api" || stored === "all") return stored;
+  return "all";
+};
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextItems, setContextItems] = useState<PricingContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
+  const [mode, setMode] = useState<ContextMode>(() => initMode());
 
   useEffect(() => {
     const eventSource = new EventSource(`${API_BASE_URL}/events`);
@@ -72,9 +82,17 @@ function App() {
     }
   }, [theme]);
 
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem("pricing-mode", mode);
+    }
+  }, [mode]);
+
+  // URL detection is only meaningful in SaaS/all modes — in API mode there are
+  // no pricing page URLs to fetch via A-MINT, so we suppress detection entirely.
   const detectedPricingUrls = useMemo(
-    () => extractPricingUrls(question),
-    [question]
+    () => (mode === "api" ? [] : extractPricingUrls(question)),
+    [question, mode]
   );
 
   const isSubmitDisabled = useMemo(() => {
@@ -176,6 +194,21 @@ function App() {
     );
   };
 
+  // Cycle through the three context modes: all → saas → api → all
+  const cycleMode = () => {
+    setMode((prev) => {
+      if (prev === "all") return "saas";
+      if (prev === "saas") return "api";
+      return "all";
+    });
+  };
+
+  const MODE_LABELS: Record<ContextMode, string> = {
+    all: "Mode: All tools",
+    saas: "Mode: SaaS",
+    api: "Mode: API",
+  };
+
   const handleFilesSelected = (files: FileList | null) => {
     if (!files || files.length === 0) {
       return;
@@ -249,10 +282,14 @@ function App() {
     setIsLoading(false);
   };
 
+  // In API mode pricing page URLs are irrelevant (no A-MINT fetch needed),
+  // so we exclude them from the request payload to keep the context clean.
   const getUrlItems = () =>
-    contextItems
-      .filter((item) => item.kind === "url")
-      .map((item) => ({ id: item.id, url: item.url }));
+    mode === "api"
+      ? []
+      : contextItems
+          .filter((item) => item.kind === "url")
+          .map((item) => ({ id: item.id, url: item.url }));
 
   const getUniqueYamlFiles = () =>
     Array.from(
@@ -310,9 +347,11 @@ function App() {
     try {
       const requestBody: ChatRequest = {
         question: trimmedQuestion,
+        mode,
         ...createContextBodyPayload(
           [...getUrlItems(), ...newUrls],
-          getUniqueYamlFiles()
+          getUniqueYamlFiles(),
+          mode
         ),
       };
       const data = await chatWithAgent(requestBody);
@@ -386,6 +425,15 @@ function App() {
               </button>
               <button
                 type="button"
+                className={`mode-toggle mode-toggle--${mode}`}
+                onClick={cycleMode}
+                aria-label="Switch context mode"
+                title="Click to cycle: All tools → SaaS only → API only"
+              >
+                {MODE_LABELS[mode]}
+              </button>
+              <button
+                type="button"
                 className="theme-toggle"
                 onClick={toggleTheme}
                 aria-label="Toggle color theme"
@@ -412,6 +460,7 @@ function App() {
                 contextItems={contextItems}
                 isSubmitting={isLoading}
                 isSubmitDisabled={isSubmitDisabled}
+                mode={mode}
                 onQuestionChange={setQuestion}
                 onSubmit={handleSubmit}
                 onFileSelect={handleFilesSelected}

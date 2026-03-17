@@ -6,7 +6,7 @@ import re
 from collections import OrderedDict
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Dict, List, Literal, Optional, Set, Tuple
 
 from .clients import MCPClientError, MCPWorkflowClient
 from .config import get_settings
@@ -28,6 +28,20 @@ API_ACTIONS = {
 }
 
 ALLOWED_ACTIONS = PRICING_ACTIONS | API_ACTIONS
+
+# ---------------------------------------------------------------------------
+# Context mode — controls which subset of tools Harvey is allowed to use.
+# "saas"  → only SaaS pricing tools (subscriptions, optimal, summary, iPricing, validate)
+# "api"   → only API analysis tools (min_time, capacity_at, …, evaluate_api_datasheet)
+# "all"   → all tools available (legacy / default behaviour)
+# ---------------------------------------------------------------------------
+ContextMode = Literal["saas", "api", "all"]
+
+ALLOWED_ACTIONS_BY_MODE: Dict[str, Set[str]] = {
+    "saas": PRICING_ACTIONS,
+    "api": API_ACTIONS,
+    "all": ALLOWED_ACTIONS,
+}
 
 # Set of action names that must have a pricing context (URL or YAML) available.
 ACTION_REQUIRES_CONTEXT = PRICING_ACTIONS
@@ -74,7 +88,7 @@ FilterCriteria shape (when used inside an action object):
 Rules:
 - Produce valid JSON with double quotes only. Do not wrap the response in Markdown fences or natural language.
 - Include "validate" when the user asks to check, test, or confirm a pricing YAML/configuration.
-- Only set requires_uploaded_yaml when a user-supplied Pricing2Yaml is mandatory to proceed.
+- Only set requires_uploaded_yaml to true when a user-supplied **SaaS Pricing2Yaml** is mandatory to proceed (i.e., for SaaS tools: subscriptions, optimal, summary, iPricing, validate). NEVER set it to true for `evaluate_api_datasheet` operations — Datasheets are a separate context (`uploaded://datasheet`) and do NOT count as Pricing2Yaml. When the plan only contains API analysis actions (evaluate_api_datasheet, min_time, etc.), requires_uploaded_yaml MUST be false.
 - Set use_pricing2yaml_spec to true whenever the user asks about schema, syntax, or validation details so the agent consults the specification excerpt.
 - Put filters inside the specific action(s) that require them (e.g. subscriptions, optimal). Do NOT emit a top-level filters field.
 - Price filters: numeric only (no symbols), base currency of the YAML. minPrice = lower bound, maxPrice = upper bound.
@@ -231,8 +245,12 @@ Use these descriptions to accurately interpret user intent and to map it to the 
   - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
 
 - **"evaluate_api_datasheet"**: Evaluates API constraints directly from a raw Datasheet YAML or URL.
-  - **Inputs:** `datasheet_source` (required, raw YAML or URL - MUST BE SET TO THE `pricing_url` variable OF THE CURRENT CONTEXT, usually "uploaded://pricing" if you have a YAML uploaded), `plan_name` (required, MUST be extracted from the user's message or the YAML — e.g. if the user says "I'm on the starter plan" set `plan_name: "starter"`; NEVER set it to null), `operation` (required, must be one of: min_time, capacity_at, capacity_during, quota_exhaustion_threshold, rates, quotas, limits, idle_time_period), `operation_params` (optional, object with extra params for the sub-operation like capacity_goal), `endpoint_path` (optional), `alias` (optional).
-  - **Rules:** When the user provides a Datasheet in raw YAML or a URL, you MUST NEVER call the standalone tools (e.g., `{"name": "min_time"}`). If you are dealing with a Datasheet context, ALWAYS output `{"name": "evaluate_api_datasheet", "datasheet_source": "uploaded://pricing" (OR YOUR URL), "operation": "min_time", ...}` instead. Prime4API will extract the exact rates and quotas from the Datasheet and do the math.
+  - **Inputs:** `datasheet_source` (required — set it to the uploaded Datasheet alias shown in the context, typically `"uploaded://datasheet"`, or to the HTTP URL if the Datasheet was provided as a link), `plan_name` (required, MUST be extracted from the user's message or the YAML — e.g. if the user says "I'm on the starter plan" set `plan_name: "starter"`; NEVER set it to null), `operation` (required, must be one of: min_time, capacity_at, capacity_during, quota_exhaustion_threshold, rates, quotas, limits, idle_time_period), `operation_params` (optional, object with extra params for the sub-operation like capacity_goal), `endpoint_path` (optional), `alias` (optional).
+  - **Rules:** When an uploaded Datasheet is present in the context (listed under "Uploaded API Datasheet content"), you MUST route all API analysis through `evaluate_api_datasheet` — NEVER call standalone tools (e.g., `{"name": "min_time"}`). Set `datasheet_source` to `"uploaded://datasheet"` (or the numbered alias if multiple datasheets exist, e.g. `"uploaded://datasheet/1"`). Note: `uploaded://pricing` is a Pricing2Yaml (SaaS context) — do NOT use it as `datasheet_source`. When the Datasheet was provided as an HTTP URL, use that URL directly as `datasheet_source`.
+  - **CRITICAL — endpoint_path and alias defaults:** Both `endpoint_path` and `alias` are **optional filters** and must only be set when the user explicitly specifies them:
+    - **`endpoint_path`**: Set ONLY if the user names a specific endpoint (e.g., "v1/email"). If the user refers generically to "the email endpoint", use the top-level path from the Datasheet (e.g., `"v1/email"`) — NEVER construct a sub-path by appending an alias name (e.g., do NOT produce `"v1/email/healthy_reputation"` — that is wrong). If the user says nothing about a specific endpoint, omit `endpoint_path` to evaluate ALL endpoints.
+    - **`alias`**: Set ONLY if the user explicitly names a specific alias or function variant (e.g., "healthy_reputation", "bulk_send"). If the user does not mention an alias, **omit `alias` entirely** so all aliases under the endpoint are evaluated. Never infer or guess an alias from prior conversation turns.
+    - **"all possibilities" / unspecified scope**: When the user asks to consider all cases, all reputations, all functions, or simply does not narrow down the endpoint or alias, omit both `endpoint_path` and `alias`.
   - **CRITICAL — multiple operations:** If the user asks for the same calculation for more than one scenario (e.g. two different capacity goals, two different endpoints, or "for all reputations"), emit **one `evaluate_api_datasheet` action per scenario** with the appropriate `endpoint_path`, `alias`, and `operation_params`. Never merge multiple scenarios into one action.
 
 ### Planning Strategy
@@ -268,6 +286,212 @@ Use these descriptions to accurately interpret user intent and to map it to the 
 Return a JSON object with the plan. See the accompanying format instructions.
 """
 
+# ---------------------------------------------------------------------------
+# SAAS_PLAN_PROMPT — identical to DEFAULT_PLAN_PROMPT but restricted to SaaS
+# pricing tools only. The API Analysis Tools section is removed so that Harvey
+# doesn't reason about or plan calls to Prime4API endpoints.
+# ---------------------------------------------------------------------------
+SAAS_PLAN_PROMPT = """You are H.A.R.V.E.Y., an expert AI agent designed to reason about pricing models using the ReAct pattern (Reasoning + Acting).
+Your goal is to create a precise execution plan to answer the user's question based on the provided pricing context (URLs or uploaded Pricing2Yaml files).
+You are operating in **SaaS Pricing mode** — only the SaaS pricing tools listed below are available. API analysis tools (min_time, capacity_at, capacity_during, rates, quotas, limits, quota_exhaustion_threshold, idle_time_period, evaluate_api_datasheet) are NOT accessible in this mode.
+
+## Context Awareness & Grounding
+
+You have full access to the uploaded Pricing2Yaml (iPricing) files.
+**CRITICAL:** You MUST analyze the YAML content to identify the exact keys used for features (`feature.name`) and usage limits (`usageLimit.name`) **before** constructing any filters.
+
+### Per-Context Grounding
+
+When handling multiple pricings (e.g., comparing SaaS A vs. SaaS B), you MUST generate **separate actions** for each pricing source/URL.
+
+* Filters for SaaS A must use **SaaS A's** exact feature/limit names.
+* Filters for SaaS B must use **SaaS B's** exact feature/limit names.
+* **MANDATORY**: You MUST explicitly set the `pricing_url` field in every action object to the specific URL or alias being queried. Do not rely on defaults when multiple contexts exist.
+
+Do **not** assume that pricings share schemas or naming conventions. Even when functionality is similar, naming and structure can differ significantly. Examples:
+
+* SaaS A may label a feature as `"SSO"` while SaaS B uses `"Single Sign-On"`.
+* One platform may express "unlimited users" as a usage limit, while another defines it as part of a feature.
+* Two providers may address the same functional requirement through different feature sets, different limit entries, or not include it at all.
+
+### Feature Mapping
+
+A single user requirement (e.g., "security") may map to different schema entities in different pricings:
+
+* **Pricing A** → one feature (`"Enterprise Shield"`)
+* **Pricing B** → multiple features (`"SSO"`, `"Audit Logs"`)
+  You MUST infer the relevant feature(s) **for each specific pricing context** and include all features required to satisfy the user's intent.
+
+### Usage Limit Logic
+
+* **Thresholds**: Interpret the request as constraints.
+
+  * "More than 10" → set threshold value to `11`
+  * "At least 10" → set threshold value to `10`
+* **Unit Conversion**: Convert user-requested units to the unit used in the YAML.
+
+  * If the user says "1 GB" but the YAML defines limits in MB, convert and use `1024`.
+
+### Semantic Understanding
+
+When available, examine feature and usage limit **descriptions** in the iPricing YAML files.
+Use these descriptions to accurately interpret user intent and to map it to the correct features and limits within each pricing.
+
+### Available Tools (MCP Resources)
+- "subscriptions": Enumerates valid subscription configurations.
+  - Inputs: `pricing_url` (or YAML context), `filters` (optional), `solver` (optional).
+  - Output: List of subscriptions with plan details, costs, and total cardinality.
+  - Use when: The user asks for a list of plans, counts of configurations, or "what options do I have?".
+
+- "optimal": Finds the best configuration based on an objective.
+  - Inputs: `pricing_url`, `filters`, `objective` ("minimize"|"maximize"), `solver`.
+  - Output: The single best subscription configuration, its cost, and breakdown.
+  - Use when: The user asks for the "cheapest", "best", "most expensive", or "optimal" configuration.
+    - Minimize: Returns the least expensive configuration among those that satisfy the provided filters (e.g., the minimum cost subscription that meets the criteria).
+    - Maximize: Returns the most expensive configuration available or, when filters apply, the most expensive among those that satisfy them (e.g., the maximum revenue a SaaS provider could obtain from a single subscription).
+- "summary": Provides high-level catalogue metrics.
+  - Inputs: `pricing_url`.
+  - Output: Counts of features, limits, and metadata (e.g., "numberOfFeatures": 50).
+  - Use when: The user asks for general stats like "the number of features" or "the type of limits in a pricing". DO NOT use it for compare different pricings, to get a summary of the pricing details or as a general overview. It is meant for structural insights only.
+
+- "iPricing": Retrieves the raw Pricing2Yaml document.
+  - Inputs: `pricing_url`.
+  - Output: The raw YAML content.
+  - Use when: When a new URL is provided and its content is not yet available.
+
+- "validate": Checks the validity of the pricing model.
+  - Inputs: `pricing_url`, `solver`.
+  - Output: Validation status and error messages.
+  - Use when: The user asks "is this valid?", "check for errors", "verify the model/pricing", or "fix/find any inconsistencies".
+
+### Planning Strategy
+1. **Analyze**: Understand the user's intent.
+2. **Check Content**: If a provided URL does not have corresponding YAML content in the context, you MUST plan an `iPricing` action to fetch it.
+3. **Ground**: Check the provided YAML content. Identify exact feature/limit names for filters.
+4. **Plan**: Construct the sequence of actions.
+   - If the user needs to model the pricing yaml from the new URL -> `iPricing`.
+   - If the user needs counts/stats -> `summary`.
+   - If the user needs specific plans -> `subscriptions` (apply grounded filters).
+   - If the user needs the best option (or the cheapest/most expensive configuration) -> `optimal` (apply grounded filters + objective).
+   - If the user needs validation -> `validate`.
+
+### Filter Construction Rules
+- Translate natural language constraints into the `FilterCriteria` schema.
+- **Schema**:
+  ```json
+  {
+      "minPrice": number,
+      "maxPrice": number,
+      "maxSubscriptionSize": number,
+      "features": ["ExactFeatureNameFromYAML"],
+      "usageLimits": {"ExactUsageLimitNameFromYAML": number}
+  }
+  ```
+- **Grounding**: You MUST use the exact `feature.name` and `usageLimit.name` from the provided YAML content.
+- **Mapping**:
+  - "with SSO" -> `features: ["SSO"]` (if "SSO" is the name in YAML).
+  - "at least 10 users" -> `usageLimits: {"Users": 10}` (if "Users" is the name in YAML).
+  - "under $50" -> `maxPrice: 50`.
+
+### Response Format
+Return a JSON object with the plan. See the accompanying format instructions.
+"""
+
+# ---------------------------------------------------------------------------
+# API_PLAN_PROMPT — focused exclusively on API rate/quota analysis tools.
+# No SaaS pricing tools are described so Harvey generates leaner, faster plans
+# without needing any Pricing2Yaml context.
+# ---------------------------------------------------------------------------
+API_PLAN_PROMPT = """You are H.A.R.V.E.Y., an expert AI agent designed to reason about API rate and quota constraints using the ReAct pattern (Reasoning + Acting).
+Your goal is to create a precise execution plan to answer the user's question about API consumption, rate limits, and quota constraints.
+You are operating in **API Analysis mode** — only the API analysis tools listed below are available. SaaS pricing tools (subscriptions, optimal, summary, iPricing, validate) are NOT accessible in this mode.
+
+### API Analysis Tools (Prime4API — no pricing context required)
+
+- **"min_time"**: Computes the minimum time to reach a given API call capacity goal under rate and quota constraints.
+  - **Inputs:** `capacity_goal` (required, integer — the number of API calls to reach), `rate` (optional), `quota` (optional).
+    - Rate / Quota shape: `{"value": number, "unit": string, "period": string}` — e.g., `{"value": 100, "unit": "request", "period": "1month"}`.
+  - Either rate, quota, or both must be provided to constrain the calculation.
+  - **Output:** `{"capacity_goal": number, "min_time": string}` — e.g., `{"capacity_goal": 500, "min_time": "4day"}`.
+  - **Semantics:** The model grants capacity at t=0, so the first period's capacity is available immediately. For example, 500 requests at 100/day resolves to 4day (days 0–3), not 5.
+  - **Use when:** The user asks how long it takes to reach a certain number of API calls, or how much time a rate/quota limit implies.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"capacity_at"**: Computes the accumulated capacity available at a specific time instant.
+  - **Inputs:** `time` (required, string — e.g., '5day'), `rate` (optional), `quota` (optional).
+  - **Output:** `{"time": string, "capacity": number}`.
+  - **Semantics:** Closed interval `[0, T]`. Assumes consumption starts with an immediate "burst" at exactly `t=0`, meaning the first period's capacity is instantly available. For example, if the limit is 100/day, `capacity_at("5day")` evaluates to exactly 600 requests (`100 at t=0` + 500 across 5 days). This represents real-world cumulative possibilities from scratch.
+  - **Use when:** The user asks general questions like "How many API calls can I make in X days/hours?". This is the **default and safest** tool for capacity estimation.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"capacity_during"**: Computes the capacity generated during a defined time interval.
+  - **Inputs:** `end_instant` (required, string), `start_instant` (optional, string — defaults to '0ms'), `rate` (optional), `quota` (optional).
+  - **Output:** `{"start_instant": string, "end_instant": string, "capacity": number}`.
+  - **Semantics:** Open/semi-open interval `(start, end]`. **Crucial distinction:** Because it mathematically excludes the initial `t=0` burst of the `start_instant`, asking for `capacity_during(5 days)` will effectively yield the cumulative capacity of what a human might think of as "4 days continuous running". It calculates exactly how much *new* capacity becomes available precisely between the two instants.
+  - **Use when:** You are evaluating a sliding time window that explicitly does **not** start at the absolute beginning (e.g., "From day 2 to day 7, how much is recovered?"). **Do NOT use** for general "how much in 5 days?" questions (use `capacity_at` instead).
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"rates"**: Retrieves the effective maximum consumption rates.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"rates": [{"value": number, "unit": string, "period": string}]}`.
+  - **Semantics:** The engine automatically evaluates all input rates and discards any that are unreachable, redundant, or mathematically superseded by stricter limits. The returned list constitutes the mathematical "truth" of the base consumption speed.
+  - **Use when:** The user asks "What is the absolute maximum speed or rate I can consume this API at?".
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"quotas"**: Retrieves the effective upper limit boundaries (quotas).
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"quotas": [{"value": number, "unit": string, "period": string}]}`.
+  - **Semantics:** Evaluates all input quotas and discards any that are mathematically rendered irrelevant by other stricter limits.
+  - **Use when:** The user asks questions regarding "hard caps", "monthly limits", or "long-term boundaries" that prevent continuous consumption.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"limits"**: Retrieves all combined active limits (rates and quotas).
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"rates": [...], "quotas": [...]}`.
+  - **Use when:** You need to analyze the full topology of limits at once.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"quota_exhaustion_threshold"**: Computes the absolute minimum time required to hit and exhaust each quota constraint.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"thresholds": [{"quota": {...}, "exhaustion_threshold": string}]}`.
+  - **Semantics:** Automatically calculates the time required to collide with the quota's upper limit by consuming uninterruptedly at the maximum allowed base rate. It calculates the raw continuous consumption time, factoring in pauses induced by intermediate limits.
+  - **Use when:** The user asks "How fast can I blow through my quota going at maximum speed?", or when evaluating the time length of a continuous sequence of API calls.
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"idle_time_period"**: Computes the "dead" or idle time spent waiting for a quota period to reset after exhausting it as fast as possible.
+  - **Inputs:** `rate` (optional), `quota` (optional).
+  - **Output:** `{"idle_times": [{"quota": {...}, "idle_time": string}]}`.
+  - **Semantics:** Uses the strict formula `idle_time = quota_period - exhaustion_threshold`. It calculates the exact amount of "dead" or "blocked" time the user suffers until the quota cycle resets, assuming they exhausted the quota as quickly as possible.
+  - **Use when:** The user asks "How long will I be blocked from making requests?", "What is the penalty time?", or "How long must I wait after hitting my limit?".
+  - Does NOT require a pricing URL or uploaded YAML — can be called stand-alone.
+
+- **"evaluate_api_datasheet"**: Evaluates API constraints directly from a raw Datasheet YAML or URL.
+  - **Inputs:** `datasheet_source` (required — set it to the uploaded Datasheet alias shown in the context, typically `"uploaded://datasheet"`, or to the HTTP URL if the Datasheet was provided as a link), `plan_name` (required, MUST be extracted from the user's message or the YAML — e.g. if the user says "I'm on the starter plan" set `plan_name: "starter"`; NEVER set it to null), `operation` (required, must be one of: min_time, capacity_at, capacity_during, quota_exhaustion_threshold, rates, quotas, limits, idle_time_period), `operation_params` (optional, object with extra params for the sub-operation like capacity_goal), `endpoint_path` (optional), `alias` (optional).
+  - **Rules:** When an uploaded Datasheet is present in the context (listed under "Uploaded API Datasheet content"), you MUST route all API analysis through `evaluate_api_datasheet` — NEVER call standalone tools (e.g., `{"name": "min_time"}`). Set `datasheet_source` to `"uploaded://datasheet"` (or the numbered alias if multiple datasheets exist, e.g. `"uploaded://datasheet/1"`). When the Datasheet was provided as an HTTP URL, use that URL directly as `datasheet_source`.
+  - **CRITICAL — endpoint_path and alias defaults:** Both `endpoint_path` and `alias` are **optional filters** and must only be set when the user explicitly specifies them:
+    - **`endpoint_path`**: Set ONLY if the user names a specific endpoint (e.g., "v1/email"). If the user refers generically to "the email endpoint", use the top-level path from the Datasheet (e.g., `"v1/email"`) — NEVER construct a sub-path by appending an alias name (e.g., do NOT produce `"v1/email/healthy_reputation"` — that is wrong). If the user says nothing about a specific endpoint, omit `endpoint_path` to evaluate ALL endpoints.
+    - **`alias`**: Set ONLY if the user explicitly names a specific alias or function variant (e.g., "healthy_reputation", "bulk_send"). If the user does not mention an alias, **omit `alias` entirely** so all aliases under the endpoint are evaluated. Never infer or guess an alias from prior conversation turns.
+    - **"all possibilities" / unspecified scope**: When the user asks to consider all cases, all reputations, all functions, or simply does not narrow down the endpoint or alias, omit both `endpoint_path` and `alias`.
+  - **CRITICAL — multiple operations:** If the user asks for the same calculation for more than one scenario (e.g. two different capacity goals, two different endpoints, or "for all reputations"), emit **one `evaluate_api_datasheet` action per scenario** with the appropriate `endpoint_path`, `alias`, and `operation_params`. Never merge multiple scenarios into one action.
+
+### Planning Strategy
+1. **Analyze**: Understand the user's intent regarding API rate limits, quotas, or consumption modeling.
+2. **Check Datasheet**: If the user has provided a Datasheet YAML (listed under "Uploaded API Datasheet content") or a Datasheet URL, you MUST use `evaluate_api_datasheet` exclusively — never call standalone tools (min_time, capacity_at, etc.) when a Datasheet context is present.
+3. **Plan**: Select the appropriate API analysis tool(s):
+   - Time to reach N API calls → `min_time`
+   - Capacity available at time T → `capacity_at` (default for "how many calls in X time?")
+   - Capacity in a specific window not starting at t=0 → `capacity_during`
+   - How fast quotas are exhausted → `quota_exhaustion_threshold`
+   - Effective maximum rate → `rates`
+   - Effective quota caps → `quotas`
+   - All combined limits → `limits`
+   - Idle/blocked wait time after exhausting quota → `idle_time_period`
+   - Datasheet-based evaluation → `evaluate_api_datasheet`
+
+### Response Format
+Return a JSON object with the plan. See the accompanying format instructions.
+"""
+
 DEFAULT_ANSWER_PROMPT = """You are H.A.R.V.E.Y., the Holistic Analysis and Regulation Virtual Expert for You.
 You have executed a pricing analysis plan and now need to formulate the final answer.
 
@@ -279,12 +503,13 @@ You have executed a pricing analysis plan and now need to formulate the final an
 
 ### Instructions
 - **Synthesize**: Combine the quantitative results from the tools with the qualitative details from the Pricing Context.
-- **Be Precise**: If the tool returned a specific price (e.g., "10.0 USD") or plan name, use it exactly.
+- **Be Precise**: If the tool returned a specific price (e.g., "10.0 USD"), plan name, time, or metric, use it exactly.
+- **NO ROUNDING OR APPROXIMATION (MANDATORY)**: NEVER round, approximate (e.g., using "≈", "about", or "approx"), or recalculate the numeric outputs, prices, or time durations returned by ANY tool. If a tool returns a precise value (like "8 h 19 min" or "$14.99"), you MUST report it EXACTLY as returned by the tool. Do NOT convert or simplify it (e.g. do not say "approx 20 min" instead of 19). Trust the tool's output implicitly as the ultimate mathematical truth.
 - **Explain**: If you performed an optimization (e.g., finding the cheapest plan), explain *why* it was chosen (e.g., "The 'Pro' plan is the cheapest option at $10 that includes the required 'SSO' feature").
 - **Contextualize**: Use the Pricing Context to add descriptions or details that might not be in the tool output (e.g., what "SSO" actually entails if described in the YAML).
 - **Fallback**: If tools failed or returned empty results, explain what happened based on the context.
 - **Specification**: If `use_pricing2yaml_spec` was true, refer to the provided specification excerpt for authoritative answers.
-- **Authoritative tool results**: For deterministic API analysis tools (e.g., `min_time`, `capacity_at`, `capacity_during`, `quota_exhaustion_threshold`, `rates`, `quotas`, `limits`, `idle_time_period`), treat the tool's returned value as the definitive, mathematically correct answer. Do NOT perform independent informal calculations or suggest alternative values that contradict the tool output. If the result seems counterintuitive, explain the model's conventions as described in the plan — do not second-guess the computation. Do NOT add hypothetical caveats about alternative window-reset semantics, alternate interpretations, or different timing conventions unless the user explicitly asks about those assumptions.
+- **Authoritative tool results**: For ALL deterministic tools (SaaS pricing and API tools like `min_time`, `capacity_at`, `quota_exhaustion_threshold`, etc.), treat the tool's returned value as the definitive, mathematically correct answer. Do NOT perform independent informal calculations or suggest alternative values that contradict the tool output. If the result seems counterintuitive, explain the model's conventions as described in the plan — do not second-guess the computation. Do NOT add hypothetical caveats about alternative window-reset semantics, alternate interpretations, or different timing conventions unless the user explicitly asks about those assumptions.
 """
 
 
@@ -308,28 +533,40 @@ class HarveyAgent:
         question: str,
         pricing_urls: Optional[List[str]] = None,
         yaml_contents: Optional[List[str]] = None,
+        datasheet_contents: Optional[List[str]] = None,
+        mode: str = "all",
     ) -> Dict[str, Any]:
+        # Resolve the set of actions permitted for this context mode.
+        # Falls back to ALLOWED_ACTIONS for unrecognised mode values.
+        allowed_actions: Set[str] = ALLOWED_ACTIONS_BY_MODE.get(mode, ALLOWED_ACTIONS)
+
         provided_urls = self._deduplicate(pricing_urls or [])
         provided_yamls = [content for content in (yaml_contents or []) if content]
+        provided_datasheets = [content for content in (datasheet_contents or []) if content]
         detected_urls = self._extract_urls_from_question(question)
         combined_urls = self._deduplicate(provided_urls + detected_urls)
         yaml_alias_map = self._build_yaml_alias_map(provided_yamls)
+        datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
+        # Merged map used for alias resolution during action execution.
+        combined_alias_map = {**yaml_alias_map, **datasheet_alias_map}
 
         plan = await self._generate_plan(
             question,
             pricing_urls=combined_urls,
             yaml_alias_map=yaml_alias_map,
+            datasheet_alias_map=datasheet_alias_map,
+            mode=mode,
         )
         self._validate_yaml_requirement(plan, provided_yamls)
 
-        actions = self._normalize_actions(plan.get("actions"))
+        actions = self._normalize_actions(plan.get("actions"), allowed_actions=allowed_actions)
         objective = self._resolve_default_objective(plan)
         self._apply_legacy_fields(plan, actions)
         default_reference = self._resolve_default_reference(
             plan_reference=plan.get("pricing_url"),
             plan_references=plan.get("pricing_urls"),
             available_urls=combined_urls,
-            yaml_aliases=list(yaml_alias_map.keys()),
+            yaml_aliases=list(combined_alias_map.keys()),
         )
 
         results, last_payload = await self._execute_actions(
@@ -338,11 +575,12 @@ class HarveyAgent:
             available_urls=combined_urls,
             # filters now action-scoped; legacy top-level filters already distributed.
             objective=objective,
-            yaml_alias_map=yaml_alias_map,
+            yaml_alias_map=combined_alias_map,
+            allowed_actions=allowed_actions,
         )
 
         payload_for_answer, result_payload = self._compose_results_payload(actions, results, last_payload)
-        answer = await self._generate_answer(question, plan, payload_for_answer, yaml_alias_map)
+        answer = await self._generate_answer(question, plan, payload_for_answer, combined_alias_map)
 
         self._strip_deprecated_plan_fields(plan)
         return {"plan": plan, "result": result_payload, "answer": answer}
@@ -376,8 +614,10 @@ class HarveyAgent:
         question: str,
         pricing_urls: List[str],
         yaml_alias_map: Dict[str, str],
+        datasheet_alias_map: Optional[Dict[str, str]] = None,
+        mode: str = "all",
     ) -> Dict[str, Any]:
-        plan_prompt = self._get_planning_prompt()
+        plan_prompt = self._get_planning_prompt(mode)
         spec_excerpt: Optional[str] = None
         if self._should_include_spec(question):
             spec_excerpt = await self._get_spec_excerpt()
@@ -387,6 +627,7 @@ class HarveyAgent:
             question=question,
             pricing_urls=pricing_urls,
             yaml_alias_map=yaml_alias_map,
+            datasheet_alias_map=datasheet_alias_map or {},
             spec_excerpt=spec_excerpt,
         )
 
@@ -437,12 +678,14 @@ class HarveyAgent:
         question: str,
         pricing_urls: List[str],
         yaml_alias_map: Dict[str, str],
+        datasheet_alias_map: Dict[str, str],
         spec_excerpt: Optional[str],
     ) -> List[str]:
         messages: List[str] = [plan_prompt, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
         messages.append(f"Question: {question}")
         self._append_pricing_urls_message(messages, pricing_urls)
         self._append_yaml_alias_messages(messages, yaml_alias_map)
+        self._append_datasheet_messages(messages, datasheet_alias_map)
         self._append_spec_excerpt_message(messages, spec_excerpt)
         return messages
 
@@ -480,6 +723,21 @@ class HarveyAgent:
             for idx, chunk in enumerate(chunks, start=1):
                 messages.append(f"YAML[{alias}] chunk {idx}/{total_chunks}:")
                 messages.append(chunk)
+
+    def _append_datasheet_messages(
+        self,
+        messages: List[str],
+        datasheet_alias_map: Dict[str, str],
+        chunk_size: int = 4000,
+    ) -> None:
+        if not datasheet_alias_map:
+            return
+        self._append_yaml_alias_messages(
+            messages,
+            datasheet_alias_map,
+            chunk_size=chunk_size,
+            header="Uploaded API Datasheet content (full, chunked). Use these as datasheet_source in evaluate_api_datasheet actions:",
+        )
 
     def _append_spec_excerpt_message(
         self,
@@ -857,7 +1115,9 @@ class HarveyAgent:
                 "H.A.R.V.E.Y. needs a Pricing2Yaml file to proceed. Please upload one and retry."
             )
 
-    def _normalize_actions(self, raw_actions: Any) -> List[PlannedAction]:
+    def _normalize_actions(
+        self, raw_actions: Any, *, allowed_actions: Optional[Set[str]] = None
+    ) -> List[PlannedAction]:
         normalized: List[PlannedAction] = []
         if raw_actions in (None, []):
             return normalized
@@ -866,28 +1126,43 @@ class HarveyAgent:
             return normalized
 
         for entry in raw_actions:
-            planned_action = self._parse_action_entry(entry)
+            planned_action = self._parse_action_entry(entry, allowed_actions=allowed_actions)
             if planned_action:
                 normalized.append(planned_action)
 
         return normalized
 
-    def _parse_action_entry(self, entry: Any, *, silent: bool = False) -> Optional[PlannedAction]:
+    def _parse_action_entry(
+        self,
+        entry: Any,
+        *,
+        allowed_actions: Optional[Set[str]] = None,
+        silent: bool = False,
+    ) -> Optional[PlannedAction]:
         """Convert a raw action entry into a PlannedAction with minimal branching.
         Accepts either a string (action name) or an object containing name plus optional fields.
         Invalid inputs return None and optionally log a warning.
+        allowed_actions restricts which action names are accepted (mode enforcement).
         """
+        # Use the provided allow-list; default to the full set for backward compatibility.
+        effective_allowed: Set[str] = allowed_actions if allowed_actions is not None else ALLOWED_ACTIONS
+
         def warn(event: str, **kwargs: Any) -> None:
             if not silent:
                 logger.warning(event, **kwargs)
 
         # Fast path: simple string action
         if isinstance(entry, str):
-            return PlannedAction(name=entry) if entry in ALLOWED_ACTIONS else None
+            return PlannedAction(name=entry) if entry in effective_allowed else None
 
         # SILENT OVERRIDE: If the LLM incorrectly tries to use a standalone abstract tool
         # but the request is associated with a context, forcibly convert it to evaluate_api_datasheet.
-        if entry.get("name") in API_ACTIONS and entry.get("name") != "evaluate_api_datasheet":
+        # Only applies when evaluate_api_datasheet itself is in the allowed set (i.e. API or all mode).
+        if (
+            "evaluate_api_datasheet" in effective_allowed
+            and entry.get("name") in API_ACTIONS
+            and entry.get("name") != "evaluate_api_datasheet"
+        ):
             # We delay populating the actual datasheet_source to _run_single_action,
             # but we tag it to ensure it gets converted.
             original_name = entry["name"]
@@ -908,7 +1183,7 @@ class HarveyAgent:
             warn("harvey.agent.overrode_standalone_tool", original=original_name)
 
         name = entry.get("name")
-        if name not in ALLOWED_ACTIONS:
+        if name not in effective_allowed:
             warn("harvey.agent.invalid_action_object", requested=entry)
             return None
 
@@ -1019,9 +1294,20 @@ class HarveyAgent:
         available_urls: List[str],
         objective: str,
         yaml_alias_map: Dict[str, str],
+        allowed_actions: Optional[Set[str]] = None,
     ) -> Tuple[List[Dict[str, Any]], Optional[Dict[str, Any]]]:
         if not actions:
             return [], None
+
+        # Hard enforcement: even if the LLM somehow produced an action that bypassed
+        # the prompt-level restriction, we reject it here before any MCP call is made.
+        effective_allowed: Set[str] = allowed_actions if allowed_actions is not None else ALLOWED_ACTIONS
+        for action in actions:
+            if action.name not in effective_allowed:
+                raise ValueError(
+                    f"Action '{action.name}' is not permitted in the current context mode. "
+                    f"Allowed actions: {sorted(effective_allowed)}."
+                )
 
         self._ensure_pricing_context(
             actions,
@@ -1113,6 +1399,14 @@ class HarveyAgent:
             else:
                 action_url = reference
 
+        # For evaluate_api_datasheet, also resolve the datasheet_source alias directly.
+        # _determine_reference returns None for this action (it's not in ACTION_REQUIRES_CONTEXT),
+        # so action_yaml would otherwise stay None and the alias would reach Prime4API verbatim.
+        if action.name == "evaluate_api_datasheet" and action_yaml is None:
+            ds_source = (action.params or {}).get("datasheet_source")
+            if ds_source and ds_source in yaml_alias_map:
+                action_yaml = yaml_alias_map[ds_source]
+
         return action_url, action_yaml, reference
 
     def _determine_reference(
@@ -1201,6 +1495,18 @@ class HarveyAgent:
                     continue
                 alias = f"uploaded://pricing/{index + 1}"
                 alias_map[alias] = content
+        return dict(alias_map)
+
+    def _build_datasheet_alias_map(self, datasheet_contents: List[str]) -> Dict[str, str]:
+        alias_map: "OrderedDict[str, str]" = OrderedDict()
+        if len(datasheet_contents) == 1:
+            if datasheet_contents[0]:
+                alias_map["uploaded://datasheet"] = datasheet_contents[0]
+        else:
+            for index, content in enumerate(datasheet_contents):
+                if not content:
+                    continue
+                alias_map[f"uploaded://datasheet/{index + 1}"] = content
         return dict(alias_map)
 
     async def _run_single_action(
@@ -1347,10 +1653,14 @@ class HarveyAgent:
             combined["lastPayload"] = last_payload
         return combined, combined
 
-    def _get_planning_prompt(self) -> str:
-        if self._planning_prompt is None:
-            self._planning_prompt = DEFAULT_PLAN_PROMPT
-        return self._planning_prompt
+    def _get_planning_prompt(self, mode: str = "all") -> str:
+        # Return the mode-specific planning prompt. The cached self._planning_prompt
+        # is no longer used because the selection is per-request based on mode.
+        if mode == "saas":
+            return SAAS_PLAN_PROMPT
+        if mode == "api":
+            return API_PLAN_PROMPT
+        return DEFAULT_PLAN_PROMPT
 
     def _get_answer_prompt(self) -> str:
         if self._answer_prompt is None:

@@ -1,6 +1,6 @@
 import { ChangeEvent, FormEvent, useRef, useState } from "react";
 import ContextManager from "./ContextManager";
-import type { ContextInputType, PricingContextItem } from "../types";
+import type { ContextInputType, ContextMode, PricingContextItem } from "../types";
 import SearchPricings from "./SearchPricings";
 import Modal from "./Modal";
 
@@ -10,6 +10,7 @@ interface Props {
   contextItems: PricingContextItem[];
   isSubmitting: boolean;
   isSubmitDisabled: boolean;
+  mode: ContextMode;
   onQuestionChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
   onFileSelect: (files: FileList | null) => void;
@@ -25,6 +26,7 @@ function ControlPanel({
   contextItems,
   isSubmitting,
   isSubmitDisabled,
+  mode,
   onQuestionChange,
   onSubmit,
   onFileSelect,
@@ -42,13 +44,23 @@ function ControlPanel({
   const handleOpenModal = () => setPricingModal(true);
   const handleCloseModal = () => setPricingModal(false);
 
-  const fileRef = useRef<HTMLInputElement>(null);
+  // Separate file input refs so pricing YAMLs and datasheets can live
+  // under distinct "Select files" buttons in "all" mode.
+  const pricingFileRef = useRef<HTMLInputElement>(null);
+  const datasheetFileRef = useRef<HTMLInputElement>(null);
 
-  const handleChooseFile = () => {
-    if (fileRef.current !== null) {
-      fileRef.current.click();
-    }
-  };
+  const handleChoosePricingFile = () => pricingFileRef.current?.click();
+  const handleChooseDatasheetFile = () => datasheetFileRef.current?.click();
+
+  // Which sections to show based on the active context mode.
+  const showPricingSection = mode === "saas" || mode === "all";
+  const showDatasheetSection = mode === "api" || mode === "all";
+
+  // Section header label changes per mode so it's always descriptive.
+  const addContextLabel =
+    mode === "saas" ? "Add Pricing Context" :
+    mode === "api"  ? "Add Datasheet Context" :
+                      "Add Context";
 
   return (
     <>
@@ -61,67 +73,109 @@ function ControlPanel({
             rows={4}
             value={question}
             onChange={handleQuestionChange}
-            placeholder="Which is the best available subscription for a team of five users?"
+            placeholder={
+              mode === "api"
+                ? "How long to make 500 API calls with 100 req/day limit?"
+                : "Which is the best available subscription for a team of five users?"
+            }
           />
         </label>
 
         <ContextManager
           items={contextItems}
           detectedUrls={detectedPricingUrls}
+          mode={mode}
           onAdd={onContextAdd}
           onRemove={onContextRemove}
           onClear={onContextClear}
         />
-        <h3>Add Pricing Context</h3>
+
+        <h3>{addContextLabel}</h3>
 
         <div className="pricing-actions">
-          <section className="ipricing-upload">
-            <input
-              ref={fileRef}
-              style={{display: "none"}}
-              type="file"
-              accept=".yaml,.yml"
-              multiple
-              onChange={(event: ChangeEvent<HTMLInputElement>) => {
-                const files = event.target.files ?? null;
-                onFileSelect(files);
-              }}
-            />
-
-            <button type="button" className="ipricing-file-selector" onClick={handleChooseFile}>
-              Select files
-            </button>
-            <h3>Upload pricing YAML (optional)</h3>
-            <p style={{margin: "1em auto"}} className="help-text">
-              Uploaded YAMLs appear in the pricing context above so you can
-              remove them at any time.
-            </p>
-          </section>
-
-          <section className="search-ipricings">
-            <button
-              type="button"
-              className="context-add-url"
-              onClick={handleOpenModal}
-            >
-              Search pricings
-            </button>
-            <h3>Add SPHERE iPricing (optional)</h3>
-            <p style={{ margin: "1em auto" }} className="help-text">
-              Add iPricings with our SPHERE integration (our iPricing
-              repository).
-            </p>
-            <p style={{ margin: "1em auto" }} className="help-text">
-              You can further customize the search if you type a pricing name in
-              the search bar.
-            </p>
-            <Modal open={showPricingModal} onClose={handleCloseModal}>
-              <SearchPricings
-                onContextAdd={onContextAdd}
-                onContextRemove={onSphereContextRemove}
+          {/* ── SaaS pricing YAML upload (saas + all modes) ── */}
+          {showPricingSection && (
+            <section className="ipricing-upload">
+              <input
+                ref={pricingFileRef}
+                style={{ display: "none" }}
+                type="file"
+                accept=".yaml,.yml"
+                multiple
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  onFileSelect(event.target.files ?? null);
+                }}
               />
-            </Modal>
-          </section>
+              <button
+                type="button"
+                className="ipricing-file-selector"
+                onClick={handleChoosePricingFile}
+              >
+                Select files
+              </button>
+              <h3>Upload pricing YAML (optional)</h3>
+              <p style={{ margin: "1em auto" }} className="help-text">
+                Uploaded YAMLs appear in the context above so you can remove
+                them at any time.
+              </p>
+            </section>
+          )}
+
+          {/* ── SPHERE iPricing search (saas + all modes only) ── */}
+          {showPricingSection && (
+            <section className="search-ipricings">
+              <button
+                type="button"
+                className="context-add-url"
+                onClick={handleOpenModal}
+              >
+                Search pricings
+              </button>
+              <h3>Add SPHERE iPricing (optional)</h3>
+              <p style={{ margin: "1em auto" }} className="help-text">
+                Add iPricings with our SPHERE integration (our iPricing
+                repository).
+              </p>
+              <p style={{ margin: "1em auto" }} className="help-text">
+                You can further customize the search if you type a pricing name
+                in the search bar.
+              </p>
+              <Modal open={showPricingModal} onClose={handleCloseModal}>
+                <SearchPricings
+                  onContextAdd={onContextAdd}
+                  onContextRemove={onSphereContextRemove}
+                />
+              </Modal>
+            </section>
+          )}
+
+          {/* ── Datasheet YAML upload (api + all modes) ── */}
+          {showDatasheetSection && (
+            <section className="ipricing-upload">
+              <input
+                ref={datasheetFileRef}
+                style={{ display: "none" }}
+                type="file"
+                accept=".yaml,.yml"
+                multiple
+                onChange={(event: ChangeEvent<HTMLInputElement>) => {
+                  onFileSelect(event.target.files ?? null);
+                }}
+              />
+              <button
+                type="button"
+                className="ipricing-file-selector"
+                onClick={handleChooseDatasheetFile}
+              >
+                Select files
+              </button>
+              <h3>Upload Datasheet YAML (optional)</h3>
+              <p style={{ margin: "1em auto" }} className="help-text">
+                Upload an API Datasheet YAML so H.A.R.V.E.Y. can evaluate rate
+                limits and quotas for a specific plan.
+              </p>
+            </section>
+          )}
         </div>
 
         <div className="control-actions">

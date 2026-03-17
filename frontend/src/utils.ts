@@ -114,19 +114,28 @@ export function diffPricingContextWithDetectedUrls(
 
 export const createContextBodyPayload = (
   urls: PricingContextUrlWithId[],
-  yamls: string[]
+  yamls: string[],
+  mode: import("./types").ContextMode = "all"
 ): PricingContextPayload => {
-  const payload = {} as PricingContextPayload;
+  const payload: PricingContextPayload = {};
   if (urls.length === 1) {
     payload.pricing_url = urls[0];
   } else if (urls.length > 1) {
     payload.pricing_urls = urls;
   }
 
-  if (yamls.length === 1) {
-    payload.pricing_yaml = yamls[0];
-  } else if (yamls.length > 1) {
-    payload.pricing_yamls = yamls;
+  if (mode === "api") {
+    if (yamls.length === 1) {
+      payload.datasheet_yaml = yamls[0];
+    } else if (yamls.length > 1) {
+      payload.datasheet_yamls = yamls;
+    }
+  } else {
+    if (yamls.length === 1) {
+      payload.pricing_yaml = yamls[0];
+    } else if (yamls.length > 1) {
+      payload.pricing_yamls = yamls;
+    }
   }
 
   return payload;
