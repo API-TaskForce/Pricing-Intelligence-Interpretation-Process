@@ -1,23 +1,39 @@
 import { useMemo, useState } from "react";
 
-import type { ContextInputType, PricingContextItem, UrlContextItemInput } from "../types";
+import type { ContextInputType, ContextMode, PricingContextItem, UrlContextItemInput } from "../types";
 import ContextManagerItem from "./ContextManagerItem";
 
 interface Props {
   items: PricingContextItem[];
   detectedUrls: string[];
+  mode: ContextMode;
   onAdd: (input: ContextInputType) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
 }
 
+const CONTEXT_TITLE: Record<ContextMode, string> = {
+  saas: "Pricing Context",
+  api: "Datasheet Context",
+  all: "Context",
+};
+
+const CONTEXT_SUBTITLE: Record<ContextMode, string> = {
+  saas: "Add URLs or YAML exports to ground H.A.R.V.E.Y.'s answers.",
+  api: "Upload Datasheet YAMLs to ground API analysis.",
+  all: "Add pricing URLs, YAML exports, or Datasheet YAMLs.",
+};
+
 function ContextManager({
   items,
   detectedUrls,
+  mode,
   onAdd,
   onRemove,
   onClear,
 }: Props) {
+  // URL input is only meaningful in SaaS and all modes — datasheets are files, not URLs.
+  const showUrlInput = mode !== "api";
   const [urlInput, setUrlInput] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -59,10 +75,8 @@ function ContextManager({
     <section className="context-manager">
       <header className="context-manager-header">
         <div>
-          <h3>Pricing Context</h3>
-          <p className="context-subtitle">
-            Add URLs or YAML exports to ground H.A.R.V.E.Y.'s answers.
-          </p>
+          <h3>{CONTEXT_TITLE[mode]}</h3>
+          <p className="context-subtitle">{CONTEXT_SUBTITLE[mode]}</p>
         </div>
         <div className="context-controls">
           <span className="context-count">{items.length} selected</span>
@@ -92,7 +106,7 @@ function ContextManager({
         )}
       </div>
 
-      {availableDetected.length > 0 ? (
+      {showUrlInput && availableDetected.length > 0 ? (
         <div className="context-detected">
           <span className="context-detected-title">Detected in question</span>
           <div className="context-detected-list">
@@ -119,29 +133,33 @@ function ContextManager({
         </div>
       ) : null}
 
-      <div className="context-add-url">
-        <input
-          type="url"
-          name="context-url"
-          inputMode="url"
-          value={urlInput}
-          placeholder="https://example.com/pricing"
-          onChange={(event) => {
-            setUrlInput(event.target.value);
-            setError(null);
-          }}
-          onKeyDown={(event) => {
-            if (event.key === "Enter") {
-              event.preventDefault();
-              handleAddUrl();
-            }
-          }}
-        />
-        <button type="button" onClick={handleAddUrl}>
-          Add URL
-        </button>
-      </div>
-      {error ? <p className="context-error">{error}</p> : null}
+      {showUrlInput ? (
+        <>
+          <div className="context-add-url">
+            <input
+              type="url"
+              name="context-url"
+              inputMode="url"
+              value={urlInput}
+              placeholder="https://example.com/pricing"
+              onChange={(event) => {
+                setUrlInput(event.target.value);
+                setError(null);
+              }}
+              onKeyDown={(event) => {
+                if (event.key === "Enter") {
+                  event.preventDefault();
+                  handleAddUrl();
+                }
+              }}
+            />
+            <button type="button" onClick={handleAddUrl}>
+              Add URL
+            </button>
+          </div>
+          {error ? <p className="context-error">{error}</p> : null}
+        </>
+      ) : null}
     </section>
   );
 }

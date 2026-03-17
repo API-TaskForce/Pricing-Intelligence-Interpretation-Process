@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(find c:/Users/danie_epmcijo/OneDrive/Desktop/TFM/SPHERE -type f -name *.py)"
+    ]
+  }
+}

@@ -100,7 +100,6 @@ class OpenAIClient:
                 completion = self._client.chat.completions.create(
                     model=model,
                     messages=[{"role": "user", "content": prompt}],
-                    reasoning_effort="high",
                 )
                 message = completion.choices[0].message
                 content = message.content or ""

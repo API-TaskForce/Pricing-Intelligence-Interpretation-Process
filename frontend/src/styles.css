@@ -190,6 +190,56 @@ body::before {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
+/* ---- Context mode toggle ---- */
+.mode-toggle {
+  align-self: flex-start;
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  font-weight: 700;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+/* "All tools" — neutral */
+.mode-toggle--all {
+  background: var(--card-bg);
+  color: var(--text-muted);
+  border-color: var(--card-border);
+}
+
+/* SaaS mode — blue/purple accent */
+.mode-toggle--saas {
+  background: rgba(102, 126, 234, 0.12);
+  color: #667eea;
+  border-color: rgba(102, 126, 234, 0.5);
+}
+
+/* API mode — teal/green accent */
+.mode-toggle--api {
+  background: rgba(16, 185, 129, 0.12);
+  color: #10b981;
+  border-color: rgba(16, 185, 129, 0.5);
+}
+
+.mode-toggle:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
+}
+
+:root[data-theme='dark'] .mode-toggle--all {
+  background: rgba(30, 41, 59, 0.9);
+}
+
+:root[data-theme='dark'] .mode-toggle:hover {
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+}
+
 main {
   display: grid;
   grid-template-columns: 1.5fr 1fr;
@@ -1243,6 +1293,7 @@ input.context-add-url:focus {
   }
 
   .theme-toggle,
+  .mode-toggle,
   .session-reset {
     align-self: auto;
   }
@@ -1287,6 +1338,7 @@ input.context-add-url:focus {
   }
 
   .theme-toggle,
+  .mode-toggle,
   .session-reset {
     width: 100%;
     text-align: center;
