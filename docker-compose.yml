@@ -2,7 +2,7 @@ name: Pricing_Intelligence
 services:
   prime4api:
     image: rgavira123/prime4api:latest
-    container_name: prime4api
+    container_name: prime4api-container
     ports:
       - "8003:8000"
     environment:
