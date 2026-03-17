@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Annotated, Any, Dict, List, Optional
+from typing import Annotated, Any, Dict, List, Literal, Optional
 
 from fastapi import (
     status,
@@ -48,6 +48,13 @@ class ChatRequest(BaseModel):
     pricing_urls: Optional[List[ChatUrlItem]] = None
     pricing_yaml: Optional[str] = None
     pricing_yamls: Optional[List[str]] = None
+    datasheet_yaml: Optional[str] = None    # Datasheet YAML (API mode)
+    datasheet_yamls: Optional[List[str]] = None
+    # Context mode: restricts Harvey to SaaS tools, API tools, or both.
+    # "saas"  → only pricing tools (subscriptions, optimal, summary, iPricing, validate)
+    # "api"   → only API analysis tools (min_time, capacity_at, …, evaluate_api_datasheet)
+    # "all"   → all tools (default / backward-compatible behaviour)
+    mode: Literal["saas", "api", "all"] = "all"
 
 
 class ChatResponse(BaseModel):
@@ -109,18 +116,32 @@ async def chat(
             yaml.strip() for yaml in request.pricing_yamls if yaml and yaml.strip()
         )
 
+    datasheet_yamls: List[str] = []
+    if request.datasheet_yaml:
+        stripped = request.datasheet_yaml.strip()
+        if stripped:
+            datasheet_yamls.append(stripped)
+    if request.datasheet_yamls:
+        datasheet_yamls.extend(
+            yaml.strip() for yaml in request.datasheet_yamls if yaml and yaml.strip()
+        )
+
     # Deduplicate while preserving order to avoid duplicated contexts when both singular
     # and plural fields are provided or when identical contents are repeated.
     if pricing_urls:
         pricing_urls = list(dict.fromkeys(pricing_urls))
     if pricing_yamls:
         pricing_yamls = list(dict.fromkeys(pricing_yamls))
+    if datasheet_yamls:
+        datasheet_yamls = list(dict.fromkeys(datasheet_yamls))
 
     try:
         response_payload = await container.agent.handle_question(
             question=question,
             pricing_urls=pricing_urls,
             yaml_contents=pricing_yamls,
+            datasheet_contents=datasheet_yamls,
+            mode=request.mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
