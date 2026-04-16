@@ -1,0 +1,26 @@
+{
+  "admin": {
+    "password": "HarveyAdmin2026",
+    "role": "admin"
+  },
+  "grupo1": {
+    "password": "Grupo1Harvey26",
+    "role": "student"
+  },
+  "grupo2": {
+    "password": "Grupo2Harvey26",
+    "role": "student"
+  },
+  "grupo3": {
+    "password": "Grupo3Harvey26",
+    "role": "student"
+  },
+  "grupo4": {
+    "password": "Grupo4Harvey26",
+    "role": "student"
+  },
+  "grupo5": {
+    "password": "Grupo5Harvey26",
+    "role": "student"
+  }
+}

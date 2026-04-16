@@ -130,13 +130,15 @@ services:
       - "8086:8086"
     environment:
       - LOG_LEVEL=INFO
-      - OPENAI_API_KEY=${HARVEY_API_KEY}
+      - HARVEY_LLM_KEY=${HARVEY_API_KEY}
       - OPENAI_MODEL=gpt-5-nano
       - AMINT_BASE_URL=http://a-mint-api:8000
       - ANALYSIS_BASE_URL=http://analysis-api:3000
       - CACHE_BACKEND=memory
       - MCP_TRANSPORT=sse
       - MCP_SERVER_URL=http://mcp-server:8085/sse
+    volumes:
+      - ./harvey_api/users.json:/app/users.json:ro
     depends_on:
       - a-mint-api
       - analysis-api

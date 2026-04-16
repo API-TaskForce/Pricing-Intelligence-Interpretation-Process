@@ -1,78 +1,12 @@
-import {
-  ChatRequest,
-  PricingContextItem,
-  PricingContextPayload,
-  PricingContextUrlWithId,
-} from "./types";
+import { ChatRequest } from "./types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8086";
 
-export function extractPricingUrls(text: string): string[] {
-  const matches = text.match(/https?:\/\/[^\s)]+/gi) ?? [];
-  const urls: string[] = [];
-
-  matches.forEach((raw) => {
-    const candidate = raw.replace(/[),.;]+$/, "");
-    try {
-      const url = new URL(candidate);
-      if (!urls.includes(url.href)) {
-        urls.push(url.href);
-      }
-    } catch (error) {
-      console.warn("Detected invalid pricing URL candidate", candidate, error);
-    }
-  });
-
-  return urls;
-}
-
-function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value);
-}
-
-export function extractHttpReferences(payload: unknown): string[] {
-  const results = new Set<string>();
-  const visited = new Set<unknown>();
-
-  const visit = (value: unknown) => {
-    if (value === null || value === undefined) {
-      return;
-    }
-    if (typeof value === "string") {
-      if (isHttpUrl(value)) {
-        results.add(value);
-      }
-      return;
-    }
-    if (typeof value !== "object") {
-      return;
-    }
-    if (visited.has(value)) {
-      return;
-    }
-    visited.add(value);
-
-    if (Array.isArray(value)) {
-      value.forEach(visit);
-      return;
-    }
-
-    Object.values(value).forEach(visit);
-  };
-
-  visit(payload);
-  return Array.from(results);
-}
-
-interface UploadResponse {
-  filename: string;
-  relative_url: string;
-}
-
-export async function uploadYamlPricing(
+export async function uploadDatasheet(
   filename: string,
-  content: string
+  content: string,
+  credentials: string
 ): Promise<string> {
   const form = new FormData();
   form.append(
@@ -81,71 +15,44 @@ export async function uploadYamlPricing(
   );
   const response = await fetch(API_BASE_URL + "/upload", {
     method: "POST",
+    headers: { Authorization: `Basic ${credentials}` },
     body: form,
   });
   if (!response.ok) {
     throw new Error(`Upload failed for ${filename}`);
   }
-
   const json = await response.json();
   return json.filename;
 }
 
-export async function deleteYamlPricing(filename: string): Promise<void> {
+export async function deleteDatasheet(
+  filename: string,
+  credentials: string
+): Promise<void> {
   const response = await fetch(API_BASE_URL + "/pricing/" + filename, {
     method: "DELETE",
+    headers: { Authorization: `Basic ${credentials}` },
   });
   if (!response.ok) {
     throw new Error(`Cannot delete item ${filename}`);
   }
 }
 
-export function diffPricingContextWithDetectedUrls(
-  pricingContext: PricingContextItem[],
-  detectedPricingUrls: string[]
-) {
-  const contextUrls = pricingContext
-    .filter((item) => item.kind === "url")
-    .map((item) => item.value);
-  return detectedPricingUrls.filter(
-    (detectedUrl) => !contextUrls.includes(detectedUrl)
-  );
+export function buildChatPayload(yamls: string[]): Pick<ChatRequest, "datasheet_yaml" | "datasheet_yamls"> {
+  if (yamls.length === 0) return {};
+  if (yamls.length === 1) return { datasheet_yaml: yamls[0] };
+  return { datasheet_yamls: yamls };
 }
 
-export const createContextBodyPayload = (
-  urls: PricingContextUrlWithId[],
-  yamls: string[],
-  mode: import("./types").ContextMode = "all"
-): PricingContextPayload => {
-  const payload: PricingContextPayload = {};
-  if (urls.length === 1) {
-    payload.pricing_url = urls[0];
-  } else if (urls.length > 1) {
-    payload.pricing_urls = urls;
-  }
-
-  if (mode === "api") {
-    if (yamls.length === 1) {
-      payload.datasheet_yaml = yamls[0];
-    } else if (yamls.length > 1) {
-      payload.datasheet_yamls = yamls;
-    }
-  } else {
-    if (yamls.length === 1) {
-      payload.pricing_yaml = yamls[0];
-    } else if (yamls.length > 1) {
-      payload.pricing_yamls = yamls;
-    }
-  }
-
-  return payload;
-};
-
-export async function chatWithAgent(body: ChatRequest) {
+export async function chatWithAgent(
+  body: ChatRequest,
+  credentials: string
+) {
   const response = await fetch(`${API_BASE_URL}/chat`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      Authorization: `Basic ${credentials}`,
     },
     body: JSON.stringify(body),
   });

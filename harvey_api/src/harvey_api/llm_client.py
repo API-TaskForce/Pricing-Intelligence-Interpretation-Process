@@ -6,6 +6,8 @@ import time
 from dataclasses import dataclass
 from typing import Any, Dict
 
+from typing import Optional
+
 from openai import (
     APIConnectionError,
     APIError,
@@ -23,6 +25,7 @@ logger = logging.getLogger(__name__)
 class OpenAIClientConfig:
     api_key: str
     model: str
+    base_url: Optional[str] = None
     api_retry_attempts: int = 5
     api_retry_backoff: float = 1.0
     api_retry_backoff_max: float = 8.0
@@ -34,7 +37,7 @@ class OpenAIClient:
 
     def __init__(self, config: OpenAIClientConfig) -> None:
         self._config = config
-        self._client = OpenAI(api_key=config.api_key)
+        self._client = OpenAI(api_key=config.api_key, base_url=config.base_url)
 
     def make_full_request(
         self,
@@ -226,32 +229,199 @@ class OpenAIClient:
         return f"{truncated}... <truncated {omitted} chars>"
 
     def _ensure_json_response(self, response: str) -> str:
-        try:
-            parsed = json.loads(response)
-        except json.JSONDecodeError:
-            extracted = self._extract_json_document(response)
-            if extracted is None:
-                raise ValueError("LLM response did not contain valid JSON.")
-            try:
-                parsed = json.loads(extracted)
-            except json.JSONDecodeError as exc:
-                raise ValueError("LLM response did not contain valid JSON.") from exc
-            response = json.dumps(parsed)
-        else:
-            response = json.dumps(parsed)
-        return response
+        return _ensure_json(response)
 
     @staticmethod
     def _extract_json_document(text: str) -> str | None:
-        decoder = json.JSONDecoder()
-        for index, char in enumerate(text):
-            if char not in "{[":
-                continue
+        return _extract_json_document(text)
+
+
+# ---------------------------------------------------------------------------
+# Module-level helpers shared by OpenAIClient and GeminiClient
+# ---------------------------------------------------------------------------
+
+def _extract_json_document(text: str) -> str | None:
+    decoder = json.JSONDecoder()
+    for index, char in enumerate(text):
+        if char not in "{[":
+            continue
+        try:
+            _, offset = decoder.raw_decode(text[index:])
+        except json.JSONDecodeError:
+            continue
+        return text[index: index + offset]
+    return None
+
+
+def _ensure_json(response: str) -> str:
+    try:
+        parsed = json.loads(response)
+    except json.JSONDecodeError:
+        extracted = _extract_json_document(response)
+        if extracted is None:
+            raise ValueError("LLM response did not contain valid JSON.")
+        try:
+            parsed = json.loads(extracted)
+        except json.JSONDecodeError as exc:
+            raise ValueError("LLM response did not contain valid JSON.") from exc
+        response = json.dumps(parsed)
+    else:
+        response = json.dumps(parsed)
+    return response
+
+
+def _normalize(response: str) -> str:
+    stripped = response.strip()
+    if stripped.startswith("```") and stripped.endswith("```"):
+        lines = stripped.splitlines()
+        return "\n".join(lines[1:-1]).strip()
+    return stripped
+
+
+def _truncate(text: str, max_length: int = 2000) -> str:
+    if len(text) <= max_length:
+        return text
+    omitted = len(text) - max_length
+    return f"{text[:max_length]}... <truncated {omitted} chars>"
+
+
+# ---------------------------------------------------------------------------
+# GeminiClient — uses httpx directly to avoid OpenAI SDK sending extra Google
+# auth headers alongside the explicit Bearer token (causes HTTP 400).
+# ---------------------------------------------------------------------------
+
+import httpx as _httpx
+
+
+_GEMINI_NATIVE_BASE = "https://generativelanguage.googleapis.com/v1beta/models"
+
+# Free-tier Gemini models tried in order when the preferred model returns 429/503/404.
+# The configured model (gemini_model in settings) is always tried first; this list
+# provides the fallback sequence.
+#
+# Order rationale: start with fast/lite models (lower quota consumption, more generous
+# free-tier limits), escalate to more capable/heavier models when needed.
+#
+# Models removed from this list:
+#   - gemini-1.5-flash, gemini-1.5-flash-8b → retired, return HTTP 404
+#   - gemini-2.0-flash, gemini-2.0-flash-lite → deprecated (shutdown June 2026);
+#     still functional but will disappear — kept at end of list as last-resort fallbacks
+#   - audio/TTS variants → not suitable for text generateContent calls
+_GEMINI_FALLBACK_MODELS = [
+    # ── Gemini 2.5 series (current stable, confirmed on AI Studio free keys) ─
+    "gemini-2.5-flash-lite",        # lightest 2.5, most generous free quota
+    "gemini-2.5-flash",             # fast + capable
+    "gemini-2.5-pro",               # most capable stable model
+    # ── Gemini 2.0 legacy (deprecated, shutdown June 2026) ───────────────────
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
+]
+
+
+class GeminiClient:
+    """httpx client for the native Gemini REST API (/v1beta/models/.../generateContent).
+
+    Authenticates via '?key=API_KEY' query parameter — no Authorization header is
+    sent at all, which completely avoids the 'Multiple authentication credentials'
+    error that occurs with the OpenAI-compatible endpoint (/v1beta/openai/...).
+
+    On 429 (rate limit) it transparently retries with the next free-tier model in
+    _GEMINI_FALLBACK_MODELS, so students don't hit the per-model quota limits.
+    """
+
+    def __init__(self, config: OpenAIClientConfig) -> None:
+        self._config = config
+        # Build the ordered model list: preferred first, then the rest of the fallbacks.
+        seen: set[str] = {config.model}
+        self._models: list[str] = [config.model]
+        for m in _GEMINI_FALLBACK_MODELS:
+            if m not in seen:
+                seen.add(m)
+                self._models.append(m)
+
+    def make_full_request(self, initial_prompt: str, *, json_output: bool = True) -> str:
+        logger.info(
+            "harvey.llm.request model=%s prompt_length=%d prompt_preview=%s",
+            self._config.model,
+            len(initial_prompt),
+            _truncate(initial_prompt),
+        )
+        try:
+            raw = self._post_with_fallback(initial_prompt)
+        except RuntimeError:
+            raise
+        except Exception as exc:
+            logger.error("harvey.llm.generic_failure model=%s error=%s", self._config.model, exc)
+            raise RuntimeError("LLM service failure. Please retry shortly.") from exc
+
+        cleaned = _normalize(raw)
+        logger.info(
+            "harvey.llm.response model=%s response_length=%d", self._config.model, len(raw)
+        )
+
+        if json_output:
+            return _ensure_json(cleaned)
+        return cleaned
+
+    def _post_with_fallback(self, prompt: str) -> str:
+        """Try each model in order; skip to the next on 429 or 404 (model unavailable)."""
+        for model in self._models:
             try:
-                _, offset = decoder.raw_decode(text[index:])
-            except json.JSONDecodeError:
+                return self._post(prompt, model)
+            except (_RateLimitedError, _ModelUnavailableError):
+                next_models = self._models[self._models.index(model) + 1:] if model != self._models[-1] else []
+                logger.warning(
+                    "harvey.llm.rate_limited_fallback model=%s next_models=%s",
+                    model,
+                    next_models,
+                )
                 continue
-            end = index + offset
-            return text[index:end]
-        return None
+        logger.error("harvey.llm.rate_limit_all_models models=%s", self._models)
+        raise RuntimeError("LLM rate limit reached on all available models. Please retry shortly.")
+
+    def _post(self, prompt: str, model: str) -> str:
+        url = f"{_GEMINI_NATIVE_BASE}/{model}:generateContent"
+        params = {"key": self._config.api_key}
+        body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+        try:
+            with _httpx.Client(timeout=120.0) as client:
+                response = client.post(
+                    url, params=params, json=body,
+                    headers={"Content-Type": "application/json"},
+                )
+        except _httpx.TimeoutException as exc:
+            raise RuntimeError("LLM connection problem. Please retry shortly.") from exc
+        except _httpx.RequestError as exc:
+            raise RuntimeError("LLM connection problem. Please retry shortly.") from exc
+
+        if response.status_code == 429:
+            raise _RateLimitedError(model)
+        if response.status_code in (404, 503):
+            # 404 = model deprecated/retired; 503 = overloaded. Skip to next fallback.
+            logger.warning(
+                "harvey.llm.model_not_found model=%s status=%d",
+                model, response.status_code,
+            )
+            raise _ModelUnavailableError(model)
+        if response.status_code >= 400:
+            logger.error(
+                "harvey.llm.generic_failure model=%s error=HTTP %d %s",
+                model, response.status_code, response.text,
+            )
+            raise RuntimeError("LLM service failure. Please retry shortly.")
+
+        data = response.json()
+        candidates = data.get("candidates", [])
+        if not candidates:
+            return ""
+        parts = candidates[0].get("content", {}).get("parts", [])
+        return "".join(p.get("text", "") for p in parts)
+
+
+class _RateLimitedError(Exception):
+    """Internal signal used by GeminiClient to trigger model fallback on 429."""
+
+
+class _ModelUnavailableError(Exception):
+    """Internal signal used by GeminiClient to trigger model fallback on 404 (deprecated/unknown model)."""
 

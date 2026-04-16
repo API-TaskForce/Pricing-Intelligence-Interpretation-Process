@@ -1,4 +1,4 @@
 import { createContext } from "react";
-import { PricingContextItem } from "../types";
+import { DatasheetContextItem } from "../types";
 
-export const PricingContext = createContext<PricingContextItem[] | null>(null)
+export const PricingContext = createContext<DatasheetContextItem[] | null>(null);

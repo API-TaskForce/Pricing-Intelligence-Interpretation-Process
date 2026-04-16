@@ -1,79 +1,44 @@
-import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 
 import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
+import LoginPage from "./components/LoginPage";
+import ApiKeySetup from "./components/ApiKeySetup";
 import type {
   ChatMessage,
-  ContextMode,
-  PricingContextItem,
+  DatasheetContextItem,
   PromptPreset,
   ContextInputType,
-  NotificationUrlEvent,
   ChatRequest,
-  PricingContextUrlWithId,
 } from "./types";
 import { PROMPT_PRESETS } from "./prompts";
 import { ThemeContext, ThemeType } from "./context/themeContext";
 import {
   chatWithAgent,
-  createContextBodyPayload,
-  deleteYamlPricing,
-  extractHttpReferences,
-  extractPricingUrls,
-  uploadYamlPricing,
-  diffPricingContextWithDetectedUrls,
+  buildChatPayload,
+  deleteDatasheet,
+  uploadDatasheet,
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
+import { useAuth } from "./context/authContext";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8086";
 
 const initTheme = (): ThemeType => {
-  if (typeof window === "undefined") {
-    return "light";
-  }
+  if (typeof window === "undefined") return "light";
   const stored = window.localStorage.getItem("pricing-theme");
-  if (stored === "light" || stored === "dark") {
-    return stored;
-  }
-  return window.matchMedia("(prefers-color-scheme: dark)").matches
-    ? "dark"
-    : "light";
+  if (stored === "light" || stored === "dark") return stored;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
-// Persist context mode across sessions so users don't have to re-select every time.
-const initMode = (): ContextMode => {
-  if (typeof window === "undefined") return "all";
-  const stored = window.localStorage.getItem("pricing-mode");
-  if (stored === "saas" || stored === "api" || stored === "all") return stored;
-  return "all";
-};
-
-function App() {
+function AppContent() {
+  const { auth, logout } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
-  const [contextItems, setContextItems] = useState<PricingContextItem[]>([]);
+  const [contextItems, setContextItems] = useState<DatasheetContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
-  const [mode, setMode] = useState<ContextMode>(() => initMode());
-
-  useEffect(() => {
-    const eventSource = new EventSource(`${API_BASE_URL}/events`);
-
-    eventSource.onopen = () => console.log("Connection established");
-
-    eventSource.addEventListener("url_transform", (event: MessageEvent) => {
-      const notification: NotificationUrlEvent = JSON.parse(event.data);
-      setContextItems((previous) =>
-        previous.map((item) =>
-          item.kind === "url" && item.id === notification.id
-            ? { ...item, transform: "done", value: notification.yaml_content }
-            : item
-        )
-      );
-    });
-    return () => eventSource.close();
-  }, []);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -82,67 +47,33 @@ function App() {
     }
   }, [theme]);
 
-  useEffect(() => {
-    if (typeof window !== "undefined") {
-      window.localStorage.setItem("pricing-mode", mode);
-    }
-  }, [mode]);
+  const isSubmitDisabled =
+    isLoading || !question.trim() || (auth.role === "student" && !auth.apiKey);
 
-  // URL detection is only meaningful in SaaS/all modes — in API mode there are
-  // no pricing page URLs to fetch via A-MINT, so we suppress detection entirely.
-  const detectedPricingUrls = useMemo(
-    () => (mode === "api" ? [] : extractPricingUrls(question)),
-    [question, mode]
-  );
-
-  const isSubmitDisabled = useMemo(() => {
-    const hasQuestion = Boolean(question.trim());
-    return isLoading || !hasQuestion;
-  }, [question, isLoading]);
-
-  const createPricingContextItems = (
-    contextInputItems: ContextInputType[]
-  ): PricingContextItem[] =>
-    contextInputItems
-      .map((item) => ({
-        ...item,
-        value: item.value.trim(),
-        id: crypto.randomUUID(),
-      }))
+  const createContextItems = (inputs: ContextInputType[]): DatasheetContextItem[] =>
+    inputs
+      .map((item) => ({ ...item, value: item.value.trim(), id: crypto.randomUUID() }))
       .filter(
         (item) =>
           !contextItems.some(
-            (stateItem) =>
-              stateItem.kind === item.kind && stateItem.value === item.value
+            (existing) => existing.kind === item.kind && existing.value === item.value
           )
       );
 
   const addContextItems = (inputs: ContextInputType[]) => {
-    if (inputs.length === 0) {
-      return null;
-    }
+    if (inputs.length === 0) return null;
+    const newItems = createContextItems(inputs);
 
-    const newPricingContextItems: PricingContextItem[] =
-      createPricingContextItems(inputs);
-
-    const uploadPromises = newPricingContextItems
-      .filter(
-        (item) =>
-          item.kind === "yaml" &&
-          item.origin &&
-          (item.origin === "user" || item.origin === "preset")
-      )
-      .map((item) => uploadYamlPricing(`${item.id}.yaml`, item.value));
+    const uploadPromises = newItems
+      .filter((item) => item.origin === "user" || item.origin === "preset")
+      .map((item) => uploadDatasheet(`${item.id}.yaml`, item.value, auth.credentials));
 
     if (uploadPromises.length > 0) {
-      Promise.all(uploadPromises).catch((err) =>
-        console.error("Upload failed", err)
-      );
+      Promise.all(uploadPromises).catch((err) => console.error("Upload failed", err));
     }
 
-    setContextItems((previous) => [...previous, ...newPricingContextItems]);
-
-    return newPricingContextItems;
+    setContextItems((prev) => [...prev, ...newItems]);
+    return newItems;
   };
 
   const addContextItem = (input: ContextInputType) => {
@@ -150,89 +81,42 @@ function App() {
   };
 
   const removeContextItem = (id: string) => {
-    const deletePromises = contextItems
-      .filter(
-        (item) =>
-          item.id === id &&
-          item.kind === "yaml" &&
-          item.origin &&
-          (item.origin === "user" || item.origin === "preset")
-      )
-      .map((item) => deleteYamlPricing(`${item.id}.yaml`));
-    if (deletePromises.length > 0) {
-      Promise.all(deletePromises);
-    }
-    setContextItems((previous) => previous.filter((item) => item.id !== id));
-  };
-
-  const removeSphereContextItem = (sphereId: string) => {
-    setContextItems((previous) =>
-      previous.filter(
-        (item) =>
-          item.origin && item.origin === "sphere" && item.sphereId !== sphereId
-      )
+    const toDelete = contextItems.filter(
+      (item) => item.id === id && (item.origin === "user" || item.origin === "preset")
     );
+    toDelete.forEach((item) =>
+      deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
+    );
+    setContextItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const clearContext = () => {
+    contextItems
+      .filter((item) => item.origin === "user" || item.origin === "preset")
+      .forEach((item) =>
+        deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
+      );
     setContextItems([]);
-    const storedYamls = contextItems
-      .filter(
-        (item) =>
-          (item.kind === "yaml" && item.origin && item.origin !== "sphere") ||
-          (item.kind === "url" && item.transform === "done")
-      )
-      .map((item) => deleteYamlPricing(`${item.id}.yaml`));
-    Promise.all(storedYamls).catch(() =>
-      console.error("Failed to delete yamls")
-    );
   };
 
   const toggleTheme = () => {
-    setTheme((previous: "light" | "dark") =>
-      previous === "dark" ? "light" : "dark"
-    );
-  };
-
-  // Cycle through the three context modes: all → saas → api → all
-  const cycleMode = () => {
-    setMode((prev) => {
-      if (prev === "all") return "saas";
-      if (prev === "saas") return "api";
-      return "all";
-    });
-  };
-
-  const MODE_LABELS: Record<ContextMode, string> = {
-    all: "Mode: All tools",
-    saas: "Mode: SaaS",
-    api: "Mode: API",
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
   };
 
   const handleFilesSelected = (files: FileList | null) => {
-    if (!files || files.length === 0) {
-      return;
-    }
+    if (!files || files.length === 0) return;
 
-    const fileArray = Array.from(files);
     Promise.all(
-      fileArray.map((file) =>
+      Array.from(files).map((file) =>
         file.text().then((content) => ({ name: file.name, content }))
       )
     )
       .then((results) => {
         const inputs: ContextInputType[] = results
-          .filter((result) => Boolean(result.content.trim()))
-          .map((result) => ({
-            kind: "yaml",
-            label: result.name,
-            value: result.content,
-            origin: "user",
-          }));
+          .filter((r) => Boolean(r.content.trim()))
+          .map((r) => ({ kind: "yaml", label: r.name, value: r.content, origin: "user" }));
 
-        if (inputs.length > 0) {
-          addContextItems(inputs);
-        }
+        if (inputs.length > 0) addContextItems(inputs);
 
         if (inputs.length !== results.length) {
           setMessages((prev) => [
@@ -240,15 +124,13 @@ function App() {
             {
               id: crypto.randomUUID(),
               role: "assistant",
-              content:
-                "One or more uploaded files were empty and were skipped.",
+              content: "One or more uploaded files were empty and were skipped.",
               createdAt: new Date().toISOString(),
             },
           ]);
         }
       })
-      .catch((error) => {
-        console.error("Failed to read YAML file", error);
+      .catch(() => {
         setMessages((prev) => [
           ...prev,
           {
@@ -282,23 +164,8 @@ function App() {
     setIsLoading(false);
   };
 
-  // In API mode pricing page URLs are irrelevant (no A-MINT fetch needed),
-  // so we exclude them from the request payload to keep the context clean.
-  const getUrlItems = () =>
-    mode === "api"
-      ? []
-      : contextItems
-          .filter((item) => item.kind === "url")
-          .map((item) => ({ id: item.id, url: item.url }));
-
-  const getUniqueYamlFiles = () =>
-    Array.from(
-      new Set(
-        contextItems
-          .filter((item) => item.kind === "yaml")
-          .map((item) => item.value)
-      )
-    );
+  const getUniqueYamls = () =>
+    Array.from(new Set(contextItems.map((item) => item.value)));
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -306,29 +173,6 @@ function App() {
 
     const trimmedQuestion = question.trim();
     if (!trimmedQuestion) return;
-
-    const newlyDetected = diffPricingContextWithDetectedUrls(
-      contextItems,
-      detectedPricingUrls
-    );
-    let newUrls: PricingContextUrlWithId[] = [];
-    if (newlyDetected.length > 0) {
-      const newItems = addContextItems(
-        newlyDetected.map((url) => ({
-          kind: "url",
-          url: url,
-          label: url,
-          value: url,
-          origin: "detected",
-          transform: "pending",
-        }))
-      );
-      newUrls = newItems
-        ? newItems
-            .filter((item) => item.kind === "url")
-            .map((item) => ({ id: item.id, url: item.url }))
-        : [];
-    }
 
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -338,63 +182,38 @@ function App() {
     };
     setMessages((prev) => [...prev, userMessage]);
     setIsLoading(true);
-    setContextItems((prev) =>
-      prev.map((item) =>
-        item.kind === "url" ? { ...item, transform: "pending" } : item
-      )
-    );
 
     try {
       const requestBody: ChatRequest = {
         question: trimmedQuestion,
-        mode,
-        ...createContextBodyPayload(
-          [...getUrlItems(), ...newUrls],
-          getUniqueYamlFiles(),
-          mode
-        ),
+        ...(auth.role === "student" && { api_key: auth.apiKey }),
+        ...buildChatPayload(getUniqueYamls()),
       };
-      const data = await chatWithAgent(requestBody);
+      const data = await chatWithAgent(requestBody, auth.credentials);
 
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: data.answer ?? "No response available.",
-        createdAt: new Date().toISOString(),
-        metadata: {
-          plan: data.plan ?? undefined,
-          result: data.result ?? undefined,
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: data.answer ?? "No response available.",
+          createdAt: new Date().toISOString(),
+          metadata: {
+            plan: data.plan ?? undefined,
+            result: data.result ?? undefined,
+          },
         },
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
-
-      const planReferences = extractHttpReferences(data?.plan);
-      const resultReferences = extractHttpReferences(data?.result);
-      const agentDiscoveredUrls = [...planReferences, ...resultReferences];
-      const newAgentDiscovered = diffPricingContextWithDetectedUrls(
-        contextItems,
-        agentDiscoveredUrls
-      );
-      if (newAgentDiscovered.length > 0) {
-        addContextItems(
-          newAgentDiscovered.map((url) => ({
-            kind: "url",
-            url: url,
-            label: url,
-            value: url,
-            origin: "agent",
-            transform: "not-started",
-          }))
-        );
-      }
+      ]);
     } catch (error) {
-      const assistantMessage: ChatMessage = {
-        id: crypto.randomUUID(),
-        role: "assistant",
-        content: `Error: ${(error as Error).message}`,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, assistantMessage]);
+      setMessages((prev) => [
+        ...prev,
+        {
+          id: crypto.randomUUID(),
+          role: "assistant",
+          content: `Error: ${(error as Error).message}`,
+          createdAt: new Date().toISOString(),
+        },
+      ]);
     } finally {
       setIsLoading(false);
       setQuestion("");
@@ -407,14 +226,17 @@ function App() {
         <div className="app">
           <header className="header-bar">
             <div>
-              <h1>H.A.R.V.E.Y. Pricing Assistant</h1>
+              <h1>H.A.R.V.E.Y. API Analysis Assistant</h1>
               <p>
-                Ask about optimal subscriptions and pricing insights using the
-                Holistic Analysis and Regulation Virtual Expert for You
-                (H.A.R.V.E.Y.) agent.
+                Ask about API rate limits, quotas, and consumption using the
+                Holistic Analysis and Regulation Virtual Expert for You (H.A.R.V.E.Y.) agent.
               </p>
             </div>
             <div className="header-actions">
+              <span className="header-user">
+                {auth.username}
+                {auth.role === "student" && " · GEMINI"}
+              </span>
               <button
                 type="button"
                 className="session-reset"
@@ -425,12 +247,11 @@ function App() {
               </button>
               <button
                 type="button"
-                className={`mode-toggle mode-toggle--${mode}`}
-                onClick={cycleMode}
-                aria-label="Switch context mode"
-                title="Click to cycle: All tools → SaaS only → API only"
+                className="session-reset"
+                onClick={logout}
+                disabled={isLoading}
               >
-                {MODE_LABELS[mode]}
+                Log out
               </button>
               <button
                 type="button"
@@ -438,9 +259,7 @@ function App() {
                 onClick={toggleTheme}
                 aria-label="Toggle color theme"
               >
-                {theme === "dark"
-                  ? "☀️ Switch to light mode"
-                  : "🌙 Switch to dark mode"}
+                {theme === "dark" ? "☀️ Switch to light mode" : "🌙 Switch to dark mode"}
               </button>
             </div>
           </header>
@@ -456,17 +275,14 @@ function App() {
             <section className="control-panel">
               <ControlPanel
                 question={question}
-                detectedPricingUrls={detectedPricingUrls}
                 contextItems={contextItems}
                 isSubmitting={isLoading}
                 isSubmitDisabled={isSubmitDisabled}
-                mode={mode}
                 onQuestionChange={setQuestion}
                 onSubmit={handleSubmit}
                 onFileSelect={handleFilesSelected}
                 onContextAdd={addContextItem}
                 onContextRemove={removeContextItem}
-                onSphereContextRemove={removeSphereContextItem}
                 onContextClear={clearContext}
               />
             </section>
@@ -475,6 +291,15 @@ function App() {
       </ThemeContext.Provider>
     </PricingContext.Provider>
   );
+}
+
+function App() {
+  const { auth } = useAuth();
+
+  if (!auth) return <LoginPage />;
+  if (auth.role === "student" && !auth.apiKey) return <ApiKeySetup />;
+
+  return <AppContent />;
 }
 
 export default App;

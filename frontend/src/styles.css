@@ -190,55 +190,6 @@ body::before {
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
 }
 
-/* ---- Context mode toggle ---- */
-.mode-toggle {
-  align-self: flex-start;
-  padding: 0.65rem 1.4rem;
-  border-radius: 999px;
-  border: 2px solid transparent;
-  font-weight: 700;
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  white-space: nowrap;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.35rem;
-}
-
-/* "All tools" — neutral */
-.mode-toggle--all {
-  background: var(--card-bg);
-  color: var(--text-muted);
-  border-color: var(--card-border);
-}
-
-/* SaaS mode — blue/purple accent */
-.mode-toggle--saas {
-  background: rgba(102, 126, 234, 0.12);
-  color: #667eea;
-  border-color: rgba(102, 126, 234, 0.5);
-}
-
-/* API mode — teal/green accent */
-.mode-toggle--api {
-  background: rgba(16, 185, 129, 0.12);
-  color: #10b981;
-  border-color: rgba(16, 185, 129, 0.5);
-}
-
-.mode-toggle:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.15);
-}
-
-:root[data-theme='dark'] .mode-toggle--all {
-  background: rgba(30, 41, 59, 0.9);
-}
-
-:root[data-theme='dark'] .mode-toggle:hover {
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
-}
 
 main {
   display: grid;
@@ -1148,7 +1099,6 @@ main {
   box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
 }
 
-/* Also style when the input itself carries the class (SearchPricings uses input.className="context-add-url") */
 input.context-add-url {
   display: block;
   width: 100%;
@@ -1293,7 +1243,6 @@ input.context-add-url:focus {
   }
 
   .theme-toggle,
-  .mode-toggle,
   .session-reset {
     align-self: auto;
   }
@@ -1338,7 +1287,6 @@ input.context-add-url:focus {
   }
 
   .theme-toggle,
-  .mode-toggle,
   .session-reset {
     width: 100%;
     text-align: center;
@@ -1821,4 +1769,171 @@ button.context-add-url {
   .modal-content .pricing-item {
     padding: 0.35rem 0.5rem;
   }
+}
+/* ── Auth screens: login + api-key setup ─────────────────────────────────── */
+
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  box-shadow: var(--card-shadow);
+  border-radius: 1.25rem;
+  padding: 2.5rem 2rem;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: center;
+  animation: slideDown 0.4s ease-out;
+}
+
+.login-card h1 {
+  font-size: 1.75rem;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  margin: 0;
+}
+
+.login-subtitle {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin: 0;
+  text-align: center;
+}
+
+.login-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-top: 1rem;
+}
+
+.login-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.login-field label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.login-field input,
+.api-key-select {
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.2s;
+  width: 100%;
+}
+
+.login-field input:focus,
+.api-key-select:focus {
+  border-color: var(--accent-color);
+}
+
+.login-error {
+  color: var(--danger-color);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.login-submit {
+  background: var(--accent-gradient);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  padding: 0.7rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.2s;
+  margin-top: 0.25rem;
+}
+
+.login-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.logout-link {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  margin-top: 0.5rem;
+  text-decoration: underline;
+}
+
+.logout-link:hover {
+  color: var(--text-primary);
+}
+
+.api-key-info {
+  width: 100%;
+  background: var(--input-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  margin-top: 0.5rem;
+}
+
+.api-key-info p {
+  margin: 0;
+}
+
+.api-key-link {
+  color: var(--accent);
+  text-decoration: none;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.api-key-link:hover {
+  text-decoration: underline;
+}
+
+.api-key-format code {
+  background: var(--card-border);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.25rem;
+  font-family: monospace;
+  font-size: 0.85em;
+  color: var(--text-primary);
+}
+
+/* User badge in header */
+.header-user {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 0.35rem 0.75rem;
+  background: var(--message-bg);
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  white-space: nowrap;
 }

@@ -47,13 +47,17 @@ class Settings(BaseSettings):
     retry_backoff_seconds: float = 1.5
 
     # LLM
-    openai_api_key: Optional[str] = Field(
+    harvey_llm_key: Optional[str] = Field(
         default=None,
-        description="OpenAI API key",
+        description="Admin LLM API key loaded from HARVEY_LLM_KEY.",
     )
     openai_model: str = Field(
         default="gpt-5",
         description="OpenAI model to use for H.A.R.V.E.Y. assistant",
+    )
+    gemini_model: str = Field(
+        default="gemini-2.5-flash",
+        description="Gemini model used for student requests",
     )
 
 
