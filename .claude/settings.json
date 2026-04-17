@@ -2,7 +2,8 @@
   "permissions": {
     "allow": [
       "Read(//c/Users/danie_epmcijo/OneDrive/Desktop/TFM/Pricing-Intelligence-Interpretation-Process/**)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(npm run *)"
     ]
   }
 }

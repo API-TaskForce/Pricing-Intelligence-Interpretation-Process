@@ -1,4 +1,4 @@
-import { ChatRequest } from "./types";
+import type { ChatRequest, DatasheetContextItem } from "./types";
 
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8086";
@@ -38,10 +38,25 @@ export async function deleteDatasheet(
   }
 }
 
-export function buildChatPayload(yamls: string[]): Pick<ChatRequest, "datasheet_yaml" | "datasheet_yamls"> {
-  if (yamls.length === 0) return {};
-  if (yamls.length === 1) return { datasheet_yaml: yamls[0] };
-  return { datasheet_yamls: yamls };
+export function buildChatPayload(
+  items: Pick<DatasheetContextItem, "kind" | "value">[]
+): Pick<ChatRequest, "datasheet_yaml" | "datasheet_yamls" | "datasheet_url" | "datasheet_urls"> {
+  const yamls = Array.from(new Set(
+    items.filter((i) => i.kind === "yaml").map((i) => i.value)
+  ));
+  const urls = Array.from(new Set(
+    items.filter((i) => i.kind === "yaml-url").map((i) => i.value)
+  ));
+
+  const payload: ReturnType<typeof buildChatPayload> = {};
+
+  if (yamls.length === 1) payload.datasheet_yaml = yamls[0];
+  else if (yamls.length > 1) payload.datasheet_yamls = yamls;
+
+  if (urls.length === 1) payload.datasheet_url = urls[0];
+  else if (urls.length > 1) payload.datasheet_urls = urls;
+
+  return payload;
 }
 
 export async function chatWithAgent(

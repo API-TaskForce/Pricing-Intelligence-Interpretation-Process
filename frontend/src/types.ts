@@ -1,5 +1,7 @@
 export type ChatRole = "user" | "assistant";
 
+export type HarveyMode = "general" | "mailersend" | "peertube" | "dailymotion";
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
@@ -11,19 +13,19 @@ export interface ChatMessage {
   };
 }
 
-export type Kinds = "yaml";
+export type Kinds = "yaml" | "yaml-url";
 export type Origins = "user" | "preset";
 
 export type DatasheetContextItem = {
   id: string;
-  kind: "yaml";
+  kind: Kinds;
   label: string;
   value: string;
   origin?: Origins;
 };
 
 export type ContextInputType = {
-  kind: "yaml";
+  kind: Kinds;
   label: string;
   value: string;
   origin?: Origins;
@@ -41,5 +43,7 @@ export type ChatRequest = {
   question: string;
   datasheet_yaml?: string;
   datasheet_yamls?: string[];
+  datasheet_url?: string;
+  datasheet_urls?: string[];
   api_key?: string;
 };

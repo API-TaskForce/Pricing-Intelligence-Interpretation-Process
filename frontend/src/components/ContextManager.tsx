@@ -6,21 +6,24 @@ interface Props {
   onAdd: (input: ContextInputType) => void;
   onRemove: (id: string) => void;
   onClear: () => void;
+  locked?: boolean;
 }
 
-function ContextManager({ items, onRemove, onClear }: Props) {
+function ContextManager({ items, onRemove, onClear, locked }: Props) {
   return (
     <section className="context-manager">
       <header className="context-manager-header">
         <div>
           <h3>Datasheet Context</h3>
           <p className="context-subtitle">
-            Upload Datasheet YAMLs to ground API analysis.
+            {locked
+              ? "Datasheet pre-loaded for this mode."
+              : "Upload Datasheet YAMLs to ground API analysis."}
           </p>
         </div>
         <div className="context-controls">
           <span className="context-count">{items.length} selected</span>
-          {items.length > 0 && (
+          {!locked && items.length > 0 && (
             <button type="button" className="context-clear" onClick={onClear}>
               Clear all
             </button>
@@ -36,7 +39,7 @@ function ContextManager({ items, onRemove, onClear }: Props) {
         ) : (
           <ul>
             {items.map((item) => (
-              <ContextManagerItem key={item.id} item={item} onRemove={onRemove} />
+              <ContextManagerItem key={item.id} item={item} onRemove={onRemove} locked={locked} />
             ))}
           </ul>
         )}

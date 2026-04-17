@@ -4,9 +4,11 @@ import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
 import LoginPage from "./components/LoginPage";
 import ApiKeySetup from "./components/ApiKeySetup";
+import ModeNav, { MODES } from "./components/ModeNav";
 import type {
   ChatMessage,
   DatasheetContextItem,
+  HarveyMode,
   PromptPreset,
   ContextInputType,
   ChatRequest,
@@ -21,9 +23,13 @@ import {
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
 import { useAuth } from "./context/authContext";
+import { MAILERSEND_URL, PEERTUBE_URL, DAILYMOTION_URL } from "./datasheets";
 
-const API_BASE_URL =
-  import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8086";
+const MODE_DATASHEET: Record<Exclude<HarveyMode, "general">, { label: string; url: string }> = {
+  mailersend: { label: "mailersend_v03.yaml", url: MAILERSEND_URL },
+  peertube:   { label: "peertube_v03.yaml",   url: PEERTUBE_URL },
+  dailymotion:{ label: "dailymotion_v03.yaml", url: DAILYMOTION_URL },
+};
 
 const initTheme = (): ThemeType => {
   if (typeof window === "undefined") return "light";
@@ -39,6 +45,7 @@ function AppContent() {
   const [contextItems, setContextItems] = useState<DatasheetContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
+  const [activeMode, setActiveMode] = useState<HarveyMode>("general");
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -49,6 +56,12 @@ function AppContent() {
 
   const isSubmitDisabled =
     isLoading || !question.trim() || (auth.role === "student" && !auth.apiKey);
+
+  const isLockedMode = activeMode !== "general";
+
+  // Only yaml-kind items need upload/delete on the backend static dir.
+  const needsUpload = (item: DatasheetContextItem) =>
+    item.kind === "yaml" && (item.origin === "user" || item.origin === "preset");
 
   const createContextItems = (inputs: ContextInputType[]): DatasheetContextItem[] =>
     inputs
@@ -65,7 +78,7 @@ function AppContent() {
     const newItems = createContextItems(inputs);
 
     const uploadPromises = newItems
-      .filter((item) => item.origin === "user" || item.origin === "preset")
+      .filter(needsUpload)
       .map((item) => uploadDatasheet(`${item.id}.yaml`, item.value, auth.credentials));
 
     if (uploadPromises.length > 0) {
@@ -81,9 +94,7 @@ function AppContent() {
   };
 
   const removeContextItem = (id: string) => {
-    const toDelete = contextItems.filter(
-      (item) => item.id === id && (item.origin === "user" || item.origin === "preset")
-    );
+    const toDelete = contextItems.filter((item) => item.id === id && needsUpload(item));
     toDelete.forEach((item) =>
       deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
     );
@@ -92,7 +103,7 @@ function AppContent() {
 
   const clearContext = () => {
     contextItems
-      .filter((item) => item.origin === "user" || item.origin === "preset")
+      .filter(needsUpload)
       .forEach((item) =>
         deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
       );
@@ -157,15 +168,55 @@ function AppContent() {
     }
   };
 
+  const buildModeContextItem = (mode: Exclude<HarveyMode, "general">): DatasheetContextItem => {
+    const { label, url } = MODE_DATASHEET[mode];
+    return {
+      id: crypto.randomUUID(),
+      kind: "yaml-url",
+      label,
+      value: url,
+      origin: "preset",
+    };
+  };
+
+  const handleModeChange = (mode: HarveyMode) => {
+    if (mode === activeMode) return;
+
+    // Delete any yaml-kind items that were uploaded to static dir
+    contextItems
+      .filter(needsUpload)
+      .forEach((item) =>
+        deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
+      );
+
+    setMessages([]);
+    setQuestion("");
+    setActiveMode(mode);
+
+    if (mode === "general") {
+      setContextItems([]);
+    } else {
+      setContextItems([buildModeContextItem(mode)]);
+    }
+  };
+
   const handleNewConversation = () => {
     setMessages([]);
     setQuestion("");
-    setContextItems([]);
     setIsLoading(false);
-  };
 
-  const getUniqueYamls = () =>
-    Array.from(new Set(contextItems.map((item) => item.value)));
+    if (activeMode === "general") {
+      clearContext();
+    } else {
+      // Keep the locked URL item, remove any yaml uploads the user may have added
+      contextItems
+        .filter(needsUpload)
+        .forEach((item) =>
+          deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
+        );
+      setContextItems((prev) => prev.filter((item) => item.kind === "yaml-url"));
+    }
+  };
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();
@@ -187,7 +238,7 @@ function AppContent() {
       const requestBody: ChatRequest = {
         question: trimmedQuestion,
         ...(auth.role === "student" && { api_key: auth.apiKey }),
-        ...buildChatPayload(getUniqueYamls()),
+        ...buildChatPayload(contextItems),
       };
       const data = await chatWithAgent(requestBody, auth.credentials);
 
@@ -220,16 +271,23 @@ function AppContent() {
     }
   };
 
+  const modeLabel = MODES.find((m) => m.id === activeMode)?.label ?? "H.A.R.V.E.Y.";
+
   return (
     <PricingContext.Provider value={contextItems}>
       <ThemeContext.Provider value={theme}>
         <div className="app">
           <header className="header-bar">
             <div>
-              <h1>H.A.R.V.E.Y. API Analysis Assistant</h1>
+              <h1>
+                H.A.R.V.E.Y.{activeMode !== "general" && (
+                  <span className="mode-badge">{modeLabel}</span>
+                )}
+              </h1>
               <p>
-                Ask about API rate limits, quotas, and consumption using the
-                Holistic Analysis and Regulation Virtual Expert for You (H.A.R.V.E.Y.) agent.
+                {activeMode === "general"
+                  ? "Ask about API rate limits, quotas, and consumption using the Holistic Analysis and Regulation Virtual Expert for You (H.A.R.V.E.Y.) agent."
+                  : `Analysing the ${modeLabel} API — datasheet pre-loaded and locked.`}
               </p>
             </div>
             <div className="header-actions">
@@ -263,6 +321,13 @@ function AppContent() {
               </button>
             </div>
           </header>
+
+          <ModeNav
+            activeMode={activeMode}
+            onModeChange={handleModeChange}
+            disabled={isLoading}
+          />
+
           <main>
             <section className="chat-panel">
               <ChatTranscript
@@ -278,6 +343,7 @@ function AppContent() {
                 contextItems={contextItems}
                 isSubmitting={isLoading}
                 isSubmitDisabled={isSubmitDisabled}
+                lockContext={isLockedMode}
                 onQuestionChange={setQuestion}
                 onSubmit={handleSubmit}
                 onFileSelect={handleFilesSelected}

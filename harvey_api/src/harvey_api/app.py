@@ -52,6 +52,8 @@ class ChatRequest(BaseModel):
     question: str
     datasheet_yaml: Optional[str] = None
     datasheet_yamls: Optional[List[str]] = None
+    datasheet_url: Optional[str] = None
+    datasheet_urls: Optional[List[str]] = None
     api_key: Optional[str] = None
 
 
@@ -109,10 +111,20 @@ async def chat(
         datasheet_yamls.extend(y.strip() for y in request.datasheet_yamls if y and y.strip())
     datasheet_yamls = list(dict.fromkeys(datasheet_yamls))
 
+    datasheet_urls: List[str] = []
+    if request.datasheet_url:
+        stripped = request.datasheet_url.strip()
+        if stripped:
+            datasheet_urls.append(stripped)
+    if request.datasheet_urls:
+        datasheet_urls.extend(u.strip() for u in request.datasheet_urls if u and u.strip())
+    datasheet_urls = list(dict.fromkeys(datasheet_urls))
+
     try:
         response_payload = await container.agent.handle_question(
             question=question,
             datasheet_contents=datasheet_yamls,
+            datasheet_urls=datasheet_urls,
             api_key=request_api_key,
             provider=request_provider,
         )

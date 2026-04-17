@@ -182,6 +182,7 @@ class HarveyAgent:
         self,
         question: str,
         datasheet_contents: Optional[List[str]] = None,
+        datasheet_urls: Optional[List[str]] = None,
         api_key: Optional[str] = None,
         provider: str = "openai",
     ) -> Dict[str, Any]:
@@ -190,7 +191,14 @@ class HarveyAgent:
         provided_datasheets = [c for c in (datasheet_contents or []) if c]
         datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
 
-        plan = await self._generate_plan(question, datasheet_alias_map=datasheet_alias_map, llm=llm)
+        provided_urls = [u for u in (datasheet_urls or []) if u]
+
+        plan = await self._generate_plan(
+            question,
+            datasheet_alias_map=datasheet_alias_map,
+            datasheet_urls=provided_urls,
+            llm=llm,
+        )
         actions = self._normalize_actions(plan.get("actions"))
 
         results, last_payload = await self._execute_actions(
@@ -199,7 +207,11 @@ class HarveyAgent:
         )
 
         payload_for_answer, result_payload = self._compose_results_payload(actions, results, last_payload)
-        answer = await self._generate_answer(question, plan, payload_for_answer, datasheet_alias_map, llm=llm)
+        answer = await self._generate_answer(
+            question, plan, payload_for_answer, datasheet_alias_map,
+            datasheet_urls=provided_urls,
+            llm=llm,
+        )
 
         return {"plan": plan, "result": result_payload, "answer": answer}
 
@@ -211,11 +223,13 @@ class HarveyAgent:
         self,
         question: str,
         datasheet_alias_map: Dict[str, str],
+        datasheet_urls: Optional[List[str]] = None,
         llm: Optional[OpenAIClient | GeminiClient] = None,
     ) -> Dict[str, Any]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
+            datasheet_urls=datasheet_urls,
         )
 
         attempt_errors: List[str] = []
@@ -254,34 +268,41 @@ class HarveyAgent:
         *,
         question: str,
         datasheet_alias_map: Dict[str, str],
+        datasheet_urls: Optional[List[str]] = None,
     ) -> List[str]:
         messages: List[str] = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
         messages.append(f"Question: {question}")
         self._append_datasheet_messages(messages, datasheet_alias_map)
+        self._append_url_references(messages, datasheet_urls)
         return messages
 
     def _append_datasheet_messages(
         self,
         messages: List[str],
         datasheet_alias_map: Dict[str, str],
-        chunk_size: int = 4000,
     ) -> None:
         if not datasheet_alias_map:
             return
         messages.append(
-            "Uploaded API Datasheet content (full, chunked). "
-            "Use these as datasheet_source in evaluate_api_datasheet actions:"
+            "API Datasheet(s) loaded. Use each alias as datasheet_source "
+            "in evaluate_api_datasheet actions (the full content is resolved at execution time):"
         )
-        for alias, content in datasheet_alias_map.items():
-            total_len = len(content or "")
-            if not content:
-                messages.append(f"{alias}: <empty content>")
-                continue
-            chunks = [content[i: i + chunk_size] for i in range(0, total_len, chunk_size)]
-            messages.append(f"{alias}: length={total_len} chars; chunks={len(chunks)}")
-            for idx, chunk in enumerate(chunks, start=1):
-                messages.append(f"Datasheet[{alias}] chunk {idx}/{len(chunks)}:")
-                messages.append(chunk)
+        for alias in datasheet_alias_map:
+            messages.append(alias)
+
+    def _append_url_references(
+        self,
+        messages: List[str],
+        datasheet_urls: Optional[List[str]],
+    ) -> None:
+        if not datasheet_urls:
+            return
+        messages.append(
+            "Remote API Datasheet URL(s). Pass each URL directly as datasheet_source "
+            "in evaluate_api_datasheet actions — do NOT modify or quote the URL:"
+        )
+        for url in datasheet_urls:
+            messages.append(url)
 
     # ------------------------------------------------------------------
     # Answer generation
@@ -293,6 +314,7 @@ class HarveyAgent:
         plan: Dict[str, Any],
         payload: Dict[str, Any],
         datasheet_alias_map: Dict[str, str],
+        datasheet_urls: Optional[List[str]] = None,
         llm: Optional[OpenAIClient | GeminiClient] = None,
     ) -> str:
         messages = [ANSWER_PROMPT]
@@ -309,6 +331,7 @@ class HarveyAgent:
             messages.append(chunk)
 
         self._append_datasheet_messages(messages, datasheet_alias_map)
+        self._append_url_references(messages, datasheet_urls)
 
         effective_llm = llm if llm is not None else self._llm
         response = await asyncio.to_thread(
