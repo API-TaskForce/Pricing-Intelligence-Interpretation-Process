@@ -1,3 +1,6 @@
+export const SENDGRID_URL =
+  "https://datasheet-bucket.fra1.digitaloceanspaces.com/aiss-workshop/datasheets/Sendgrid@RAPIDAPI_datasheet-2025.yaml";
+
 export const PEERTUBE_URL =
   "http://194.62.96.89/static/datasheets/uploaded/peertube/2026-04-13.yaml";
 

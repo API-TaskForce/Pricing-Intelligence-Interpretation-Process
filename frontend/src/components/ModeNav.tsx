@@ -13,6 +13,11 @@ export const MODES: ModeConfig[] = [
     description: "General assistant — upload any datasheet YAML",
   },
   {
+    id: "sendgrid",
+    label: "Sendgrid",
+    description: "Pre-loaded with the Sendgrid API datasheet",
+  },
+  {
     id: "mailersend",
     label: "Mailersend",
     description: "Pre-loaded with the Mailersend API datasheet",

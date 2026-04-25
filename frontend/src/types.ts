@@ -1,12 +1,18 @@
 export type ChatRole = "user" | "assistant";
 
-export type HarveyMode = "general" | "mailersend" | "peertube" | "dailymotion";
+export interface ChatHistoryMessage {
+  role: ChatRole;
+  content: string;
+}
+
+export type HarveyMode = "general" | "sendgrid" | "mailersend" | "peertube" | "dailymotion";
 
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
   createdAt: string;
+  chartHtml?: string;
   metadata?: {
     plan?: Record<string, unknown>;
     result?: Record<string, unknown>;
@@ -45,5 +51,6 @@ export type ChatRequest = {
   datasheet_yamls?: string[];
   datasheet_url?: string;
   datasheet_urls?: string[];
+  history?: ChatHistoryMessage[];
   api_key?: string;
 };

@@ -398,6 +398,380 @@ async def evaluate_api_datasheet(
     return result
 
 
+@mcp.tool()
+async def datasheet_min_time(
+    datasheet_source: str,
+    capacity_goal: int,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[float] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_min_time",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        capacity_goal=capacity_goal,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    result = await container.prime4api_client.datasheet_min_time(
+        datasheet_source=datasheet_source,
+        capacity_goal=capacity_goal,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_min_time")
+    return result
+
+
+@mcp.tool()
+async def datasheet_capacity_at(
+    datasheet_source: str,
+    time: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[float] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_capacity_at",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        time=time,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    result = await container.prime4api_client.datasheet_capacity_at(
+        datasheet_source=datasheet_source,
+        time=time,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_capacity_at")
+    return result
+
+
+@mcp.tool()
+async def datasheet_capacity_during(
+    datasheet_source: str,
+    end_instant: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+    start_instant: str = "0ms",
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[float] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_capacity_during",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        end_instant=end_instant,
+        start_instant=start_instant,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    result = await container.prime4api_client.datasheet_capacity_during(
+        datasheet_source=datasheet_source,
+        end_instant=end_instant,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        start_instant=start_instant,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_capacity_during")
+    return result
+
+
+@mcp.tool()
+async def datasheet_quota_exhaustion_threshold(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_quota_exhaustion_threshold",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    result = await container.prime4api_client.datasheet_quota_exhaustion_threshold(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_quota_exhaustion_threshold")
+    return result
+
+
+@mcp.tool()
+async def datasheet_idle_time_period(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_idle_time_period",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    result = await container.prime4api_client.datasheet_idle_time_period(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_idle_time_period")
+    return result
+
+
+@mcp.tool()
+async def datasheet_rates(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_rates",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    result = await container.prime4api_client.datasheet_rates(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_rates")
+    return result
+
+
+@mcp.tool()
+async def datasheet_quotas(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_quotas",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    result = await container.prime4api_client.datasheet_quotas(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_quotas")
+    return result
+
+
+@mcp.tool()
+async def datasheet_limits(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+) -> Dict[str, Any]:
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_limits",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    result = await container.prime4api_client.datasheet_limits(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_limits")
+    return result
+
+
+@mcp.tool()
+async def datasheet_capacity_curve_inflection(
+    datasheet_source: str,
+    time_interval: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+    alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[float] = None,
+) -> Dict[str, Any]:
+    """Generate an interactive inflection-point capacity curve chart from a datasheet.
+
+    Returns an HTML document (Plotly) wrapped in {"html": "<html...>"}.
+    time_interval examples: '1h', '1day', '1month'.
+    capacity_unit filters the chart to one dimension such as "emails".
+    capacity_request_factor represents units per API call, such as emails per call.
+    """
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_capacity_curve_inflection",
+        time_interval=time_interval,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    html = await container.prime4api_client.datasheet_capacity_curve_inflection(
+        datasheet_source=datasheet_source,
+        time_interval=time_interval,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+        alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_capacity_curve_inflection")
+    return {"html": html}
+
+
+@mcp.tool()
+async def datasheet_nav_plans(
+    datasheet_source: str,
+) -> Dict[str, Any]:
+    """List all plan names available in the datasheet.
+
+    Use this before calc tools when plan names are unknown.
+    Returns: {"plans": ["free", "pro", ...]}
+    """
+    logger.info(TOOL_INVOKED, tool="datasheet_nav_plans")
+    result = await container.prime4api_client.datasheet_nav_plans(
+        datasheet_source=datasheet_source,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_nav_plans")
+    return result
+
+
+@mcp.tool()
+async def datasheet_nav_endpoints(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List endpoint paths available in the datasheet, optionally filtered by plan.
+
+    Returns: {"endpoints": ["/mail/send", ...]}
+    """
+    logger.info(TOOL_INVOKED, tool="datasheet_nav_endpoints", plan_name=plan_name)
+    result = await container.prime4api_client.datasheet_nav_endpoints(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_nav_endpoints")
+    return result
+
+
+@mcp.tool()
+async def datasheet_nav_crf_ranges(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """Return the min/max CRF range per capacity unit for an endpoint.
+
+    Call this ALONGSIDE a calc tool when the user has not specified their batch size,
+    so the answer phase can contextualise the 3 automatic scenarios meaningfully.
+    Returns: [{"unit": "emails", "min": 1, "max": 1000, "description": "..."}, ...]
+    """
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_nav_crf_ranges",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    result = await container.prime4api_client.datasheet_nav_crf_ranges(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_nav_crf_ranges")
+    return result
+
+
+@mcp.tool()
+async def datasheet_nav_capacity_units(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List the available capacity units for a plan/endpoint (e.g., 'emails', 'MBs').
+
+    Returns: {"capacity_units": ["emails", "MBs"]}
+    """
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_nav_capacity_units",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    result = await container.prime4api_client.datasheet_nav_capacity_units(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_nav_capacity_units")
+    return result
+
+
+@mcp.tool()
+async def datasheet_nav_aliases(
+    datasheet_source: str,
+    plan_name: Optional[str] = None,
+    endpoint_path: Optional[str] = None,
+) -> Dict[str, Any]:
+    """List aliases defined for an endpoint. Field absent in result if no aliases exist.
+
+    Returns: {"aliases": ["GET", "POST"]} or {}
+    """
+    logger.info(
+        TOOL_INVOKED,
+        tool="datasheet_nav_aliases",
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    result = await container.prime4api_client.datasheet_nav_aliases(
+        datasheet_source=datasheet_source,
+        plan_name=plan_name,
+        endpoint_path=endpoint_path,
+    )
+    logger.info(TOOL_COMPLETED, tool="datasheet_nav_aliases")
+    return result
+
+
 def main() -> None:
     mcp.run(transport=settings.mcp_transport)
 

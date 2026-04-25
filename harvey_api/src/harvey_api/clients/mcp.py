@@ -326,6 +326,262 @@ class MCPWorkflowClient:
             arguments["alias"] = alias
         return await self._call_tool("evaluate_api_datasheet", arguments)
 
+    async def run_datasheet_min_time(
+        self,
+        *,
+        datasheet_source: str,
+        capacity_goal: int,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "capacity_goal": capacity_goal,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_min_time", arguments)
+
+    async def run_datasheet_capacity_at(
+        self,
+        *,
+        datasheet_source: str,
+        time: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "time": time,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_at", arguments)
+
+    async def run_datasheet_capacity_during(
+        self,
+        *,
+        datasheet_source: str,
+        end_instant: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        start_instant: str = "0ms",
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "end_instant": end_instant,
+            "start_instant": start_instant,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_during", arguments)
+
+    async def run_datasheet_quota_exhaustion_threshold(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("datasheet_quota_exhaustion_threshold", arguments)
+
+    async def run_datasheet_idle_time_period(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("datasheet_idle_time_period", arguments)
+
+    async def run_datasheet_rates(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("datasheet_rates", arguments)
+
+    async def run_datasheet_quotas(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("datasheet_quotas", arguments)
+
+    async def run_datasheet_limits(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        return await self._call_tool("datasheet_limits", arguments)
+
+    async def run_datasheet_capacity_curve_inflection(
+        self,
+        *,
+        datasheet_source: str,
+        time_interval: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "time_interval": time_interval,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_curve_inflection", arguments)
+
+    async def run_datasheet_nav_plans(
+        self,
+        *,
+        datasheet_source: str,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        return await self._call_tool("datasheet_nav_plans", arguments)
+
+    async def run_datasheet_nav_endpoints(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        return await self._call_tool("datasheet_nav_endpoints", arguments)
+
+    async def run_datasheet_nav_crf_ranges(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_crf_ranges", arguments)
+
+    async def run_datasheet_nav_capacity_units(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_capacity_units", arguments)
+
+    async def run_datasheet_nav_aliases(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_aliases", arguments)
+
     async def get_prompt_messages(self, prompt_name: str) -> List[Dict[str, str]]:
         session = await self.ensure_connected()
         try:
