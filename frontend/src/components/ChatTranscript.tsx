@@ -1,7 +1,9 @@
+import { useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
 import type { ChatMessage, PromptPreset } from '../types';
+import ChartModal from './ChartModal';
 
 interface Props {
   messages: ChatMessage[];
@@ -11,8 +13,11 @@ interface Props {
 }
 
 function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect }: Props) {
+  const [activeChart, setActiveChart] = useState<string | null>(null);
+
   return (
     <div className="chat-transcript" aria-live="polite" aria-busy={isLoading}>
+      {activeChart ? <ChartModal html={activeChart} onClose={() => setActiveChart(null)} /> : null}
       {messages.length === 0 && !isLoading ? (
         <div className="chat-empty-state">
           <div className="empty-state-header">
@@ -32,6 +37,9 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
                   type="button"
                 >
                   <span className="prompt-suggestion-text">{preset.label}</span>
+                  {preset.description && (
+                    <span className="prompt-suggestion-desc">{preset.description}</span>
+                  )}
                 </button>
               ))}
             </div>
@@ -47,6 +55,15 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
           <div className="message-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
+          {message.chartHtml ? (
+            <button
+              type="button"
+              className="chart-open-btn"
+              onClick={() => setActiveChart(message.chartHtml!)}
+            >
+              📊 Ver gráfico de curva de capacidad
+            </button>
+          ) : null}
           {message.metadata?.plan || message.metadata?.result ? (
             <details>
               <summary>View H.A.R.V.E.Y. context</summary>

@@ -49,11 +49,16 @@ app.mount(
 
 
 class ChatRequest(BaseModel):
+    class HistoryMessage(BaseModel):
+        role: str
+        content: str
+
     question: str
     datasheet_yaml: Optional[str] = None
     datasheet_yamls: Optional[List[str]] = None
     datasheet_url: Optional[str] = None
     datasheet_urls: Optional[List[str]] = None
+    history: Optional[List[HistoryMessage]] = None
     api_key: Optional[str] = None
 
 
@@ -125,6 +130,7 @@ async def chat(
             question=question,
             datasheet_contents=datasheet_yamls,
             datasheet_urls=datasheet_urls,
+            history=[item.model_dump() for item in request.history] if request.history else None,
             api_key=request_api_key,
             provider=request_provider,
         )

@@ -13,7 +13,7 @@ import type {
   ContextInputType,
   ChatRequest,
 } from "./types";
-import { PROMPT_PRESETS } from "./prompts";
+import { PROMPT_PRESETS, SENDGRID_PRESETS } from "./prompts";
 import { ThemeContext, ThemeType } from "./context/themeContext";
 import {
   chatWithAgent,
@@ -23,12 +23,18 @@ import {
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
 import { useAuth } from "./context/authContext";
-import { MAILERSEND_URL, PEERTUBE_URL, DAILYMOTION_URL } from "./datasheets";
+import { MAILERSEND_URL, PEERTUBE_URL, DAILYMOTION_URL, SENDGRID_URL } from "./datasheets";
 
 const MODE_DATASHEET: Record<Exclude<HarveyMode, "general">, { label: string; url: string }> = {
-  mailersend: { label: "mailersend_v03.yaml", url: MAILERSEND_URL },
-  peertube:   { label: "peertube_v03.yaml",   url: PEERTUBE_URL },
-  dailymotion:{ label: "dailymotion_v03.yaml", url: DAILYMOTION_URL },
+  sendgrid:   { label: "Sendgrid@RAPIDAPI_datasheet-2025.yaml", url: SENDGRID_URL },
+  mailersend: { label: "mailersend_v03.yaml",                   url: MAILERSEND_URL },
+  peertube:   { label: "peertube_v03.yaml",                     url: PEERTUBE_URL },
+  dailymotion:{ label: "dailymotion_v03.yaml",                  url: DAILYMOTION_URL },
+};
+
+const MODE_PRESETS: Partial<Record<HarveyMode, typeof PROMPT_PRESETS>> = {
+  general:  PROMPT_PRESETS,
+  sendgrid: SENDGRID_PRESETS,
 };
 
 const initTheme = (): ThemeType => {
@@ -237,10 +243,19 @@ function AppContent() {
     try {
       const requestBody: ChatRequest = {
         question: trimmedQuestion,
+        history: messages.map((message) => ({
+          role: message.role,
+          content: message.content,
+        })),
         ...(auth.role === "student" && { api_key: auth.apiKey }),
         ...buildChatPayload(contextItems),
       };
       const data = await chatWithAgent(requestBody, auth.credentials);
+
+      const chartHtml: string | undefined =
+        typeof data?.result?.payload?.html === 'string'
+          ? data.result.payload.html
+          : undefined;
 
       setMessages((prev) => [
         ...prev,
@@ -249,6 +264,7 @@ function AppContent() {
           role: "assistant",
           content: data.answer ?? "No response available.",
           createdAt: new Date().toISOString(),
+          chartHtml,
           metadata: {
             plan: data.plan ?? undefined,
             result: data.result ?? undefined,
@@ -333,7 +349,7 @@ function AppContent() {
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
-                promptPresets={PROMPT_PRESETS}
+                promptPresets={MODE_PRESETS[activeMode] ?? []}
                 onPresetSelect={handlePromptSelect}
               />
             </section>

@@ -247,6 +247,304 @@ class Prime4APIClient:
             
         return await self._post(url, body, log_name="evaluate_api_datasheet")
 
+    async def datasheet_min_time(
+        self,
+        datasheet_source: str,
+        capacity_goal: int,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/min-time"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        params: Dict[str, Any] = {"capacity_goal": capacity_goal}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(
+            url,
+            body,
+            params=params,
+            log_name="datasheet_min_time",
+        )
+
+    async def datasheet_capacity_at(
+        self,
+        datasheet_source: str,
+        time: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/capacity-at"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        params: Dict[str, Any] = {"time": time}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(
+            url,
+            body,
+            params=params,
+            log_name="datasheet_capacity_at",
+        )
+
+    async def datasheet_capacity_during(
+        self,
+        datasheet_source: str,
+        end_instant: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        start_instant: str = "0ms",
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/capacity-during"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        params: Dict[str, Any] = {"end_instant": end_instant, "start_instant": start_instant}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(
+            url,
+            body,
+            params=params,
+            log_name="datasheet_capacity_during",
+        )
+
+    async def datasheet_quota_exhaustion_threshold(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/quota-exhaustion-threshold"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        return await self._post(url, body, log_name="datasheet_quota_exhaustion_threshold")
+
+    async def datasheet_idle_time_period(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/idle-time-period"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        return await self._post(url, body, log_name="datasheet_idle_time_period")
+
+    async def datasheet_rates(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/rates"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        return await self._post(url, body, log_name="datasheet_rates")
+
+    async def datasheet_quotas(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/quotas"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        return await self._post(url, body, log_name="datasheet_quotas")
+
+    async def datasheet_limits(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        url = f"{self._base_url}/api/v1/datasheet/limits"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        return await self._post(url, body, log_name="datasheet_limits")
+
+    async def datasheet_capacity_curve_inflection(
+        self,
+        datasheet_source: str,
+        time_interval: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[float] = None,
+    ) -> str:
+        """POST /api/v1/datasheet/capacity-curves/chart/inflection?time_interval=<t>
+
+        Returns an interactive HTML document (Plotly chart).
+        """
+        url = f"{self._base_url}/api/v1/datasheet/capacity-curves/chart/inflection"
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+            alias=alias,
+        )
+        params: Dict[str, Any] = {"time_interval": time_interval}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post_text(
+            url,
+            body,
+            params=params,
+            log_name="datasheet_capacity_curve_inflection",
+        )
+
+    async def datasheet_nav_plans(
+        self,
+        datasheet_source: str,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/nav/plans"""
+        return await self._post(
+            f"{self._base_url}/api/v1/datasheet/nav/plans",
+            {"datasheet_source": datasheet_source},
+            log_name="datasheet_nav_plans",
+        )
+
+    async def datasheet_nav_endpoints(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/nav/endpoints"""
+        body: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            body["plan_name"] = plan_name
+        return await self._post(
+            f"{self._base_url}/api/v1/datasheet/nav/endpoints",
+            body,
+            log_name="datasheet_nav_endpoints",
+        )
+
+    async def datasheet_nav_crf_ranges(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/nav/crf-ranges"""
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+        )
+        return await self._post(
+            f"{self._base_url}/api/v1/datasheet/nav/crf-ranges",
+            body,
+            log_name="datasheet_nav_crf_ranges",
+        )
+
+    async def datasheet_nav_capacity_units(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/nav/capacity-units"""
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+        )
+        return await self._post(
+            f"{self._base_url}/api/v1/datasheet/nav/capacity-units",
+            body,
+            log_name="datasheet_nav_capacity_units",
+        )
+
+    async def datasheet_nav_aliases(
+        self,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """POST /api/v1/datasheet/nav/aliases"""
+        body = self._build_datasheet_body(
+            datasheet_source=datasheet_source,
+            plan_name=plan_name,
+            endpoint_path=endpoint_path,
+        )
+        return await self._post(
+            f"{self._base_url}/api/v1/datasheet/nav/aliases",
+            body,
+            log_name="datasheet_nav_aliases",
+        )
+
+    @staticmethod
+    def _build_datasheet_body(
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        body: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            body["plan_name"] = plan_name
+        if endpoint_path is not None:
+            body["endpoint_path"] = endpoint_path
+        if alias is not None:
+            body["alias"] = alias
+        return body
+
     async def _post(
         self,
         url: str,
@@ -270,3 +568,26 @@ class Prime4APIClient:
         data: Dict[str, Any] = response.json()
         logger.info(f"prime4api.{log_name}.success")
         return data
+
+    async def _post_text(
+        self,
+        url: str,
+        body: Dict[str, Any],
+        log_name: str,
+        params: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """POST helper that returns the raw response text (for HTML responses)."""
+        logger.info(f"prime4api.{log_name}.request", url=url, params=params)
+        try:
+            response = await self._client.post(url, json=body, params=params)
+            response.raise_for_status()
+        except httpx.HTTPStatusError as exc:
+            detail = exc.response.text
+            logger.error(f"prime4api.{log_name}.http_error", status=exc.response.status_code, detail=detail)
+            raise Prime4APIError(f"Prime4API returned {exc.response.status_code}: {detail}") from exc
+        except httpx.RequestError as exc:
+            logger.error(f"prime4api.{log_name}.connection_error", error=str(exc))
+            raise Prime4APIError(f"Could not reach Prime4API: {exc}") from exc
+
+        logger.info(f"prime4api.{log_name}.success")
+        return response.text

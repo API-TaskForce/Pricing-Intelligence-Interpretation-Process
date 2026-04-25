@@ -52,11 +52,11 @@ class Settings(BaseSettings):
         description="Admin LLM API key loaded from HARVEY_LLM_KEY.",
     )
     openai_model: str = Field(
-        default="gpt-5",
+        default="gpt-5-mini",
         description="OpenAI model to use for H.A.R.V.E.Y. assistant",
     )
     gemini_model: str = Field(
-        default="gemini-2.5-flash",
+        default="gemini-3.1-flash-lite-preview",
         description="Gemini model used for student requests",
     )
 
