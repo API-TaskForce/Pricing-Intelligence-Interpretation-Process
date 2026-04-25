@@ -23,18 +23,26 @@ import {
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
 import { useAuth } from "./context/authContext";
-import { MAILERSEND_URL, PEERTUBE_URL, DAILYMOTION_URL, SENDGRID_URL } from "./datasheets";
+import {
+  MAILERSEND_URL,
+  PEERTUBE_URL,
+  DAILYMOTION_URL,
+  SENDGRID_2025_URL,
+  SENDGRID_2026_URL,
+} from "./datasheets";
 
 const MODE_DATASHEET: Record<Exclude<HarveyMode, "general">, { label: string; url: string }> = {
-  sendgrid:   { label: "Sendgrid@RAPIDAPI_datasheet-2025.yaml", url: SENDGRID_URL },
-  mailersend: { label: "mailersend_v03.yaml",                   url: MAILERSEND_URL },
-  peertube:   { label: "peertube_v03.yaml",                     url: PEERTUBE_URL },
-  dailymotion:{ label: "dailymotion_v03.yaml",                  url: DAILYMOTION_URL },
+  "sendgrid-2025": { label: "Sendgrid@RAPIDAPI_datasheet-2025.yaml", url: SENDGRID_2025_URL },
+  "sendgrid-2026": { label: "Sendgrid@RAPIDAPI_datasheet-2026.yaml", url: SENDGRID_2026_URL },
+  mailersend: { label: "mailersend_v03.yaml", url: MAILERSEND_URL },
+  peertube: { label: "peertube_v03.yaml", url: PEERTUBE_URL },
+  dailymotion: { label: "dailymotion_v03.yaml", url: DAILYMOTION_URL },
 };
 
 const MODE_PRESETS: Partial<Record<HarveyMode, typeof PROMPT_PRESETS>> = {
-  general:  PROMPT_PRESETS,
-  sendgrid: SENDGRID_PRESETS,
+  general: PROMPT_PRESETS,
+  "sendgrid-2025": SENDGRID_PRESETS,
+  "sendgrid-2026": SENDGRID_PRESETS,
 };
 
 const initTheme = (): ThemeType => {

@@ -5,7 +5,13 @@ export interface ChatHistoryMessage {
   content: string;
 }
 
-export type HarveyMode = "general" | "sendgrid" | "mailersend" | "peertube" | "dailymotion";
+export type HarveyMode =
+  | "general"
+  | "sendgrid-2025"
+  | "sendgrid-2026"
+  | "mailersend"
+  | "peertube"
+  | "dailymotion";
 
 export interface ChatMessage {
   id: string;
