@@ -467,7 +467,7 @@ class Prime4APIClient:
         """POST /api/v1/datasheet/nav/endpoints"""
         body: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
-            body["plan_name"] = plan_name
+            body["plan_name"] = plan_name.strip().lower()
         return await self._post(
             f"{self._base_url}/api/v1/datasheet/nav/endpoints",
             body,
@@ -538,7 +538,7 @@ class Prime4APIClient:
     ) -> Dict[str, Any]:
         body: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
-            body["plan_name"] = plan_name
+            body["plan_name"] = plan_name.strip().lower()
         if endpoint_path is not None:
             body["endpoint_path"] = endpoint_path
         if alias is not None:

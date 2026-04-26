@@ -186,16 +186,16 @@ These are supplementary context tools — always combine them with a calc tool, 
    work correctly with just datasheet_source and optional plan_name/endpoint_path. Never ask the user
    for CRF or capacity_unit before generating a chart.
 7. Nav actions are supplementary — never replace calc actions with them.
-8. If the user says "por defecto", "default", "sin filtros", "para todos los planes", "para todo",
-   or any equivalent meaning they want the API to use its own defaults — call the tool immediately
-   with only datasheet_source. Omit plan_name, endpoint_path, alias, capacity_unit, and
+8. If the user says "para todos los planes", "todos los planes", "para todo", "sin filtros", or sends
+   a clarification answer from the UI selecting all plans — call the tool immediately with only
+   datasheet_source. Omit plan_name, endpoint_path, alias, capacity_unit, and
    capacity_request_factor entirely, even if they were mentioned earlier. Do NOT navigate first,
    do NOT ask for any clarification. The API aggregates across all plans, endpoints, and dimensions
    automatically when no filters are passed.
 9. If the user's request is ambiguous (e.g. "genera la curva" with no plan or time_interval
    specified) and you genuinely cannot build the action, return {"actions": []} — the answer phase
-   will ask one clarifying question. Only do this once: if the user already answered (even with
-   "por defecto"), always produce an action — never return empty actions twice in a row.
+   will ask one clarifying question. Only do this once: if the user already answered, always produce
+   an action — never return empty actions twice in a row.
 
 ### Tool Selection Guide
 - Time to reach N calls -> "min_time" or "datasheet_min_time"
@@ -251,13 +251,11 @@ Your answers must be clear, practical, and written as if advising a developer �
 **4. End with a follow-up question when plan and/or CRF are still unknown.**
 - If results span multiple plans (no plan_name was specified) and/or multiple CRF scenarios
   (no capacity_request_factor was specified), close with ONE question that covers both at once.
-- Always offer "por defecto" as a valid answer that keeps all results as-is.
+- The UI provides interactive fields; do NOT suggest typing keywords like "por defecto".
 - When a nav crf_ranges result is available, reference the actual range.
-- Example (both unknown): "¿Quieres acotar los resultados a un plan concreto o a un número de
-  [unidad] por llamada? Si prefieres ver todos los planes y rangos, di 'por defecto'."
-- Example (only CRF unknown): "¿Cuántos [unidad] envías por llamada normalmente? El rango habitual
-  es [min]–[max]. O di 'por defecto' para mantener los tres escenarios."
-- Never ask this question if the user already answered with "por defecto" or a specific value.
+- Example (both unknown): "¿Quieres acotar los resultados a un plan concreto o a un número de [unidad] por llamada?"
+- Example (only CRF unknown): "¿Cuántos [unidad] envías por llamada normalmente? El rango habitual es [min]–[max]."
+- Never ask this question if the user already specified a plan or a value.
 
 **5. Alias mentions — suppress when absent.**
 - Only mention endpoint aliases if the `alias` field was non-null in the tool result. Do not invent
@@ -275,11 +273,8 @@ Your answers must be clear, practical, and written as if advising a developer �
 **8. When no tools were executed (empty plan).**
 - Ask exactly one clarifying question that covers the two key dimensions at once: plan and CRF
   (or batch size / units per call).
-- Always offer "por defecto" as a valid answer that skips both filters and returns results
-  aggregated across all plans and all automatic CRF scenarios.
-- Example: "¿Para qué plan y con cuántos [unidad] por llamada quieres el cálculo? Puedes indicar
-  valores concretos (ej. 'plan pro, 200 emails por llamada') o decir 'por defecto' para obtener
-  resultados para todos los planes y rangos del datasheet."
+- The UI provides interactive fields for the user to fill in; do NOT suggest typing special keywords.
+- Example: "¿Para qué plan y con cuántos [unidad] por llamada quieres el cálculo?"
 - Never ask more than one question per turn.
 
 **9. HTML chart handling.**
@@ -289,9 +284,9 @@ Your answers must be clear, practical, and written as if advising a developer �
 
 ### Response Format
 - Use the user's language (Spanish if they wrote in Spanish).
-- Use Markdown: bold headers for plan names, bullet lists for scenarios, bold for key figures.
-- Be concise — a structured list is cleaner than a paragraph per scenario.
-- Close with the follow-up question when CRF is unknown (rule 4). When no tools ran, ask one clarifying question and offer "por defecto" (rule 8).
+- **Simple results** (one plan, one CRF, one number): answer in one or two natural sentences. Do NOT use bullet lists when the answer fits in a sentence. Do NOT echo back information the user already provided (plan name, unit, CRF) — just state the result.
+- **Complex results** (multiple plans, multiple scenarios, or comparison): use Markdown bold headers for plan names, bullet lists for scenarios, bold for key figures.
+- Close with the follow-up question when CRF is unknown (rule 4). When no tools ran, ask one clarifying question (rule 8).
 """
 
 
@@ -303,18 +298,21 @@ PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS = """Additional planning rules:
 - Use conversation history to resolve short follow-up replies like "Pro", "/mail/send", or "500 emails per call".
 - Ask for plan_name only when the user wants one concrete plan answer and has not selected one.
 - Do not ask for plan_name when the user explicitly wants all plans or a comparison across plans.
-- Ask for endpoint_path only when multiple endpoints could match and the answer depends on one of them.
+- Ask for endpoint_path only when the datasheet has multiple distinct endpoints and the answer depends on which one.
 - Ask for capacity_request_factor when per-call batch size materially changes the requested throughput or timing result.
+- Ask for capacity_unit ONLY when the datasheet genuinely has multiple distinct capacity units AND the user has not specified one. If the nav results (e.g. crf_ranges description) already tell you the unit, do NOT ask for it.
+- The UI provides interactive dropdowns for the user; do NOT suggest typing special keywords like "por defecto".
 - Clarification example: {"response_mode":"clarify","clarification_fields":["plan_name","capacity_request_factor"],"actions":[{"name":"datasheet_nav_plans","datasheet_source":"uploaded://datasheet"},{"name":"datasheet_nav_crf_ranges","datasheet_source":"uploaded://datasheet","endpoint_path":"/mail/send"}]}
 """
 
-ANSWER_CLARIFICATION_PROMPT = """Additional answer rules:
-- If Plan.response_mode is "clarify", do NOT answer the original capacity question yet.
+ANSWER_CLARIFICATION_PROMPT = """Additional answer rules (apply ONLY when Plan.response_mode is "clarify"):
+- Do NOT answer the original capacity question yet.
 - Use nav results to ask a short, grounded follow-up that helps the user provide the missing selector(s).
-- Prefer one natural message, not a form. Ask in this order when relevant: plan -> endpoint -> alias -> capacity unit -> units per call.
-- Include available options from nav results when they are short enough to list.
-- If CRF ranges are available, mention the exact min/max range in domain language.
-- In clarify mode, do not describe worst/typical/best scenarios yet.
+- Prefer one natural message. Ask in this order when relevant: plan -> endpoint -> alias -> capacity unit -> units per call.
+- Do NOT enumerate plan names, endpoint paths, aliases, or capacity units in your follow-up question — the UI already shows all available options as interactive dropdowns. Mentioning them in text is redundant.
+- If CRF ranges are available from nav results, mention the exact min/max range in domain language — this is the only value the UI does not show as a dropdown.
+- Do NOT suggest typing "por defecto" or any special keyword.
+- Do not describe worst/typical/best scenarios yet.
 """
 
 
@@ -356,6 +354,7 @@ class HarveyAgent:
         history: Optional[List[Dict[str, str]]] = None,
         api_key: Optional[str] = None,
         provider: str = "openai",
+        query_mode: str = "guided",
     ) -> Dict[str, Any]:
         llm = self._resolve_llm(api_key, provider)
 
@@ -369,14 +368,16 @@ class HarveyAgent:
             datasheet_urls=provided_urls,
             history=history,
             llm=llm,
+            query_mode=query_mode,
         )
-        plan = self._apply_clarification_fallback(
-            plan=plan,
-            question=question,
-            datasheet_alias_map=datasheet_alias_map,
-            datasheet_urls=provided_urls,
-            history=history,
-        )
+        if query_mode != "autonomous":
+            plan = self._apply_clarification_fallback(
+                plan=plan,
+                question=question,
+                datasheet_alias_map=datasheet_alias_map,
+                datasheet_urls=provided_urls,
+                history=history,
+            )
         actions = self._normalize_actions(plan.get("actions"))
 
         results, last_payload = await self._execute_actions(
@@ -408,12 +409,14 @@ class HarveyAgent:
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
         llm: Optional[OpenAIClient | GeminiClient] = None,
+        query_mode: str = "guided",
     ) -> Dict[str, Any]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=datasheet_urls,
             history=history,
+            query_mode=query_mode,
         )
 
         attempt_errors: List[str] = []
@@ -454,23 +457,29 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        query_mode: str = "guided",
     ) -> List[str]:
-        messages: List[str] = [
-            PLAN_PROMPT,
-            PLAN_RESPONSE_FORMAT_INSTRUCTIONS,
-            PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS,
-        ]
+        messages: List[str] = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
+        if query_mode == "autonomous":
+            messages.append(
+                "Mode: AUTONOMOUS. Never use response_mode 'clarify'. "
+                "Always answer directly using all available plans when plan_name is not specified. "
+                "Omit plan_name from actions to evaluate all plans."
+            )
+        else:
+            messages.append(PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS)
         self._append_history_messages(messages, history)
         messages.append(f"Question: {question}")
         self._append_datasheet_messages(messages, datasheet_alias_map)
         self._append_url_references(messages, datasheet_urls)
-        self._append_clarification_priority_guidance(
-            messages,
-            question=question,
-            datasheet_alias_map=datasheet_alias_map,
-            datasheet_urls=datasheet_urls,
-            history=history,
-        )
+        if query_mode != "autonomous":
+            self._append_clarification_priority_guidance(
+                messages,
+                question=question,
+                datasheet_alias_map=datasheet_alias_map,
+                datasheet_urls=datasheet_urls,
+                history=history,
+            )
         return messages
 
     def _append_datasheet_messages(
@@ -622,6 +631,33 @@ class HarveyAgent:
     ) -> Dict[str, Any]:
         normalised_plan = self._normalise_plan(plan)
         if normalised_plan.get("response_mode") == "clarify":
+            # Merge LLM-declared fields with heuristic fields so the UI shows everything needed.
+            clarification_fields: List[str] = list(normalised_plan.get("clarification_fields") or [])
+            for field in self._infer_missing_clarification_fields(
+                question=question,
+                datasheet_alias_map=datasheet_alias_map,
+                datasheet_urls=datasheet_urls,
+                history=history,
+            ):
+                if field not in clarification_fields:
+                    clarification_fields.append(field)
+            if clarification_fields != list(normalised_plan.get("clarification_fields") or []):
+                normalised_plan = {**normalised_plan, "clarification_fields": clarification_fields}
+            if clarification_fields:
+                existing_actions = self._normalize_actions(normalised_plan.get("actions"))
+                datasheet_source = self._resolve_single_datasheet_source(
+                    datasheet_alias_map=datasheet_alias_map,
+                    datasheet_urls=datasheet_urls,
+                    actions=existing_actions,
+                )
+                if datasheet_source:
+                    nav_actions = self._build_clarification_nav_actions(
+                        datasheet_source=datasheet_source,
+                        missing_fields=clarification_fields,
+                        actions=existing_actions,
+                    )
+                    if nav_actions:
+                        normalised_plan = {**normalised_plan, "actions": nav_actions}
             return normalised_plan
 
         missing_fields = self._infer_missing_clarification_fields(
@@ -700,6 +736,12 @@ class HarveyAgent:
 
         if "plan_name" in missing_fields:
             add_action("datasheet_nav_plans")
+        if "endpoint_path" in missing_fields:
+            add_action("datasheet_nav_endpoints", plan_name=known_plan)
+        if "capacity_unit" in missing_fields:
+            add_action("datasheet_nav_capacity_units", plan_name=known_plan, endpoint_path=known_endpoint)
+        if "alias" in missing_fields:
+            add_action("datasheet_nav_aliases", plan_name=known_plan, endpoint_path=known_endpoint)
         if "capacity_request_factor" in missing_fields:
             add_action(
                 "datasheet_nav_capacity_units",

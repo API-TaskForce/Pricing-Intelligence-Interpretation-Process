@@ -2,6 +2,7 @@ import { FormEvent, useEffect, useState } from "react";
 
 import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
+import ClarificationPanel from "./components/ClarificationPanel";
 import DemoPresetPanel from "./components/DemoPresetPanel";
 import LoginPage from "./components/LoginPage";
 import ApiKeySetup from "./components/ApiKeySetup";
@@ -9,12 +10,14 @@ import ModeNav, { MODES } from "./components/ModeNav";
 import ModeSettingsButton from "./components/ModeSettingsButton";
 import type {
   ChatMessage,
+  ClarificationRequest,
   DatasheetContextItem,
   HarveyMode,
   PromptPreset,
   ContextInputType,
   ChatRequest,
 } from "./types";
+import { useAppMode } from "./context/appModeContext";
 import { SENDGRID_PRESETS } from "./prompts";
 import { ThemeContext, ThemeType } from "./context/themeContext";
 import {
@@ -61,8 +64,81 @@ interface AppContentProps {
   onLoginClick: () => void;
 }
 
+function extractClarificationFromResult(
+  fields: string[],
+  result: Record<string, unknown>
+): ClarificationRequest {
+  const steps = Array.isArray((result as any).steps)
+    ? (result as any).steps
+    : result.action
+    ? [result]
+    : [];
+
+  const allPayloads: unknown[] = steps.length
+    ? steps.map((s: any) => s.payload)
+    : [result];
+
+  let availablePlans: string[] | undefined;
+  let availableEndpoints: string[] | undefined;
+  let availableCapacityUnits: string[] | undefined;
+  let availableAliases: string[] | undefined;
+  let crfRanges: { min?: number; max?: number } | undefined;
+
+  for (const payload of allPayloads) {
+    if (!payload || typeof payload !== "object") continue;
+    const p = payload as Record<string, unknown>;
+    if (Array.isArray(p.plans) && p.plans.every((x: unknown) => typeof x === "string")) {
+      availablePlans = p.plans as string[];
+    }
+    if (Array.isArray(p.endpoints) && p.endpoints.every((x: unknown) => typeof x === "string")) {
+      availableEndpoints = p.endpoints as string[];
+    }
+    if (Array.isArray(p.capacity_units) && p.capacity_units.every((x: unknown) => typeof x === "string")) {
+      availableCapacityUnits = p.capacity_units as string[];
+    }
+    if (Array.isArray(p.aliases) && p.aliases.every((x: unknown) => typeof x === "string")) {
+      availableAliases = p.aliases as string[];
+    }
+    if (typeof p.min_crf === "number" || typeof p.max_crf === "number") {
+      crfRanges = {
+        min: typeof p.min_crf === "number" ? p.min_crf : undefined,
+        max: typeof p.max_crf === "number" ? p.max_crf : undefined,
+      };
+    }
+  }
+
+  // Filter out fields that are trivially resolved (only 1 option available)
+  const filteredFields = fields.filter((field) => {
+    if (field === "endpoint_path" && availableEndpoints !== undefined && availableEndpoints.length <= 1) return false;
+    if (field === "capacity_unit" && availableCapacityUnits !== undefined && availableCapacityUnits.length <= 1) return false;
+    if (field === "alias" && availableAliases !== undefined && availableAliases.length <= 1) return false;
+    return true;
+  });
+
+  return {
+    fields: filteredFields,
+    availablePlans,
+    availableEndpoints: availableEndpoints && availableEndpoints.length > 1 ? availableEndpoints : undefined,
+    availableCapacityUnits: availableCapacityUnits && availableCapacityUnits.length > 1 ? availableCapacityUnits : undefined,
+    availableAliases: availableAliases && availableAliases.length > 1 ? availableAliases : undefined,
+    crfRanges,
+  };
+}
+
+function buildClarificationAnswer(answers: Record<string, string>): string {
+  const parts: string[] = [];
+  if (answers.plan_name === "__all__") parts.push("Para todos los planes disponibles");
+  else if (answers.plan_name) parts.push(`Plan: ${answers.plan_name}`);
+  if (answers.endpoint_path) parts.push(`Endpoint: ${answers.endpoint_path}`);
+  if (answers.alias) parts.push(`Alias: ${answers.alias}`);
+  if (answers.capacity_unit) parts.push(`Unidad: ${answers.capacity_unit}`);
+  if (answers.capacity_request_factor) parts.push(`${answers.capacity_request_factor} unidades por llamada`);
+  return parts.join(", ");
+}
+
 function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   const { auth, logout } = useAuth();
+  const { queryMode } = useAppMode();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextItems, setContextItems] = useState<DatasheetContextItem[]>([]);
@@ -70,6 +146,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
   const [activeMode, setActiveMode] = useState<HarveyMode>("sendgrid-2025");
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
+  const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -221,6 +298,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
     setQuestion("");
     setActiveMode(mode);
     setActivePresetId(null);
+    setPendingClarification(null);
     setContextItems([buildModeContextItem(mode)]);
   };
 
@@ -229,6 +307,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
     setQuestion("");
     setActivePresetId(null);
     setIsLoading(false);
+    setPendingClarification(null);
 
     if (!isDemo) {
       contextItems
@@ -257,13 +336,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
     setMessages([userMessage, assistantMessage]);
   };
 
-  const handleSubmit = async (event: FormEvent) => {
-    event.preventDefault();
-    if (isSubmitDisabled) return;
-
-    const trimmedQuestion = question.trim();
-    if (!trimmedQuestion) return;
-
+  const submitQuestion = async (trimmedQuestion: string, currentMessages: ChatMessage[]) => {
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "user",
@@ -271,17 +344,20 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
       createdAt: new Date().toISOString(),
     };
     setMessages((prev) => [...prev, userMessage]);
+    setPendingClarification(null);
+    setQuestion("");
     setIsLoading(true);
 
     try {
       const requestBody: ChatRequest = {
         question: trimmedQuestion,
-        history: messages.map((message) => ({
+        history: currentMessages.map((message) => ({
           role: message.role,
           content: message.content,
         })),
         ...(auth!.role === "student" && { api_key: auth!.apiKey }),
         ...buildChatPayload(contextItems),
+        query_mode: queryMode,
       };
       const data = await chatWithAgent(requestBody, auth!.credentials);
 
@@ -290,20 +366,29 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
           ? data.result.payload.html
           : undefined;
 
-      setMessages((prev) => [
-        ...prev,
-        {
-          id: crypto.randomUUID(),
-          role: "assistant",
-          content: data.answer ?? "No response available.",
-          createdAt: new Date().toISOString(),
-          chartHtml,
-          metadata: {
-            plan: data.plan ?? undefined,
-            result: data.result ?? undefined,
-          },
+      const assistantMessage: ChatMessage = {
+        id: crypto.randomUUID(),
+        role: "assistant",
+        content: data.answer ?? "No response available.",
+        createdAt: new Date().toISOString(),
+        chartHtml,
+        metadata: {
+          plan: data.plan ?? undefined,
+          result: data.result ?? undefined,
         },
-      ]);
+      };
+      setMessages((prev) => [...prev, assistantMessage]);
+
+      if (
+        queryMode === "guided" &&
+        data.plan?.response_mode === "clarify" &&
+        Array.isArray(data.plan?.clarification_fields) &&
+        data.plan.clarification_fields.length > 0
+      ) {
+        setPendingClarification(
+          extractClarificationFromResult(data.plan.clarification_fields, data.result ?? {})
+        );
+      }
     } catch (error) {
       setMessages((prev) => [
         ...prev,
@@ -316,8 +401,21 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
       ]);
     } finally {
       setIsLoading(false);
-      setQuestion("");
     }
+  };
+
+  const handleSubmit = async (event: FormEvent) => {
+    event.preventDefault();
+    if (isSubmitDisabled) return;
+    const trimmedQuestion = question.trim();
+    if (!trimmedQuestion) return;
+    await submitQuestion(trimmedQuestion, messages);
+  };
+
+  const handleClarificationSubmit = async (answers: Record<string, string>) => {
+    const answer = buildClarificationAnswer(answers);
+    if (!answer) return;
+    await submitQuestion(answer, messages);
   };
 
   const modeLabel = MODES.find((m) => m.id === activeMode)?.label ?? "H.A.R.V.E.Y.";
@@ -418,6 +516,12 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
                     presets={MODE_PRESETS[activeMode as HarveyMode] ?? []}
                     activePresetId={activePresetId}
                     onSelect={handleDemoPresetClick}
+                  />
+                ) : pendingClarification !== null && queryMode === "guided" ? (
+                  <ClarificationPanel
+                    clarification={pendingClarification}
+                    onSubmit={handleClarificationSubmit}
+                    disabled={isLoading}
                   />
                 ) : (
                   <ControlPanel

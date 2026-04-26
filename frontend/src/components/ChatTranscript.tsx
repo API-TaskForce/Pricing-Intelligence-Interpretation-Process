@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -15,6 +15,20 @@ interface Props {
 
 function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect, isDemo = false }: Props) {
   const [activeChart, setActiveChart] = useState<string | null>(null);
+  const lastMessageRef = useRef<HTMLElement>(null);
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to bottom when loading starts so the user sees "Processing..."
+  useEffect(() => {
+    if (isLoading) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+  }, [isLoading]);
+
+  // Scroll to the TOP of the newest message when it arrives
+  useEffect(() => {
+    if (messages.length > 0 && !isLoading) {
+      lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+  }, [messages.length]);
 
   return (
     <div className="chat-transcript" aria-live="polite" aria-busy={isLoading}>
@@ -47,8 +61,12 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
           )}
         </div>
       ) : null}
-      {messages.map((message) => (
-        <article key={message.id} className={`message message-${message.role}`}>
+      {messages.map((message, index) => (
+        <article
+          key={message.id}
+          ref={index === messages.length - 1 ? lastMessageRef : null}
+          className={`message message-${message.role}`}
+        >
           <header>
             <span className="message-role">{message.role === 'user' ? 'You' : 'H.A.R.V.E.Y.'}</span>
             <time dateTime={message.createdAt}>{new Date(message.createdAt).toLocaleTimeString()}</time>
@@ -85,6 +103,7 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
         </article>
       ))}
       {isLoading ? <div className="message message-assistant">Processing request...</div> : null}
+      <div ref={bottomRef} />
     </div>
   );
 }

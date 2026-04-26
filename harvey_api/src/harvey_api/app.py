@@ -60,6 +60,7 @@ class ChatRequest(BaseModel):
     datasheet_urls: Optional[List[str]] = None
     history: Optional[List[HistoryMessage]] = None
     api_key: Optional[str] = None
+    query_mode: Optional[str] = "guided"
 
 
 class ChatResponse(BaseModel):
@@ -125,6 +126,8 @@ async def chat(
         datasheet_urls.extend(u.strip() for u in request.datasheet_urls if u and u.strip())
     datasheet_urls = list(dict.fromkeys(datasheet_urls))
 
+    query_mode = request.query_mode if request.query_mode in ("guided", "autonomous") else "guided"
+
     try:
         response_payload = await container.agent.handle_question(
             question=question,
@@ -133,6 +136,7 @@ async def chat(
             history=[item.model_dump() for item in request.history] if request.history else None,
             api_key=request_api_key,
             provider=request_provider,
+            query_mode=query_mode,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

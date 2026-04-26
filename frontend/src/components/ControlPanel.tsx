@@ -93,6 +93,12 @@ function ControlPanel({
           value={question}
           disabled={isDemo}
           onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onQuestionChange(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              if (!isSubmitDisabled) onSubmit(e as unknown as FormEvent);
+            }
+          }}
           placeholder={
             isDemo
               ? "Select a preset question above to try H.A.R.V.E.Y. in demo mode…"

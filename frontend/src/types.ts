@@ -59,4 +59,14 @@ export type ChatRequest = {
   datasheet_urls?: string[];
   history?: ChatHistoryMessage[];
   api_key?: string;
+  query_mode?: "guided" | "autonomous";
 };
+
+export interface ClarificationRequest {
+  fields: string[];
+  availablePlans?: string[];
+  availableEndpoints?: string[];
+  availableCapacityUnits?: string[];
+  availableAliases?: string[];
+  crfRanges?: { min?: number; max?: number };
+}
