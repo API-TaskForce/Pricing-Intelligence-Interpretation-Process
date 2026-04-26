@@ -6,7 +6,6 @@ export interface ChatHistoryMessage {
 }
 
 export type HarveyMode =
-  | "general"
   | "sendgrid-2025"
   | "sendgrid-2026"
   | "mailersend"
@@ -49,6 +48,7 @@ export interface PromptPreset {
   description: string;
   question: string;
   context: ContextInputType[];
+  demoResponse?: string;
 }
 
 export type ChatRequest = {

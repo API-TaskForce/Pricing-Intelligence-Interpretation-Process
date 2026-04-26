@@ -8,11 +8,6 @@ interface ModeConfig {
 
 export const MODES: ModeConfig[] = [
   {
-    id: "general",
-    label: "H.A.R.V.E.Y.",
-    description: "General assistant — upload any datasheet YAML",
-  },
-  {
     id: "sendgrid-2025",
     label: "Sendgrid 2025",
     description: "Pre-loaded with the Sendgrid 2025 API datasheet",

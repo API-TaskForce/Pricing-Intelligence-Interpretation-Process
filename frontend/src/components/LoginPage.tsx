@@ -4,7 +4,11 @@ import { useAuth, UserRole } from "../context/authContext";
 const API_BASE_URL =
   import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8086";
 
-export default function LoginPage() {
+interface Props {
+  onBack?: () => void;
+}
+
+export default function LoginPage({ onBack }: Props) {
   const { login } = useAuth();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -80,6 +84,11 @@ export default function LoginPage() {
           >
             {isLoading ? "Entrando..." : "Entrar"}
           </button>
+          {onBack && (
+            <button type="button" className="logout-link" onClick={onBack}>
+              ← Continuar en modo demo
+            </button>
+          )}
         </form>
       </div>
     </div>

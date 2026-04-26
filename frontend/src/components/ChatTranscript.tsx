@@ -10,9 +10,10 @@ interface Props {
   isLoading: boolean;
   promptPresets?: PromptPreset[];
   onPresetSelect?: (preset: PromptPreset) => void;
+  isDemo?: boolean;
 }
 
-function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect }: Props) {
+function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect, isDemo = false }: Props) {
   const [activeChart, setActiveChart] = useState<string | null>(null);
 
   return (

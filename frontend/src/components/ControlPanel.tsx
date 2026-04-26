@@ -8,6 +8,7 @@ interface Props {
   isSubmitting: boolean;
   isSubmitDisabled: boolean;
   lockContext?: boolean;
+  isDemo?: boolean;
   onQuestionChange: (value: string) => void;
   onSubmit: (event: FormEvent) => void;
   onFileSelect: (files: FileList | null) => void;
@@ -31,6 +32,7 @@ function ControlPanel({
   isSubmitting,
   isSubmitDisabled,
   lockContext,
+  isDemo,
   onQuestionChange,
   onSubmit,
   onFileSelect,
@@ -89,8 +91,13 @@ function ControlPanel({
           required
           rows={4}
           value={question}
+          disabled={isDemo}
           onChange={(e: ChangeEvent<HTMLTextAreaElement>) => onQuestionChange(e.target.value)}
-          placeholder="How long to make 500 API calls with 100 req/day limit?"
+          placeholder={
+            isDemo
+              ? "Select a preset question above to try H.A.R.V.E.Y. in demo mode…"
+              : "How long to make 500 API calls with 100 req/day limit?"
+          }
         />
       </label>
 

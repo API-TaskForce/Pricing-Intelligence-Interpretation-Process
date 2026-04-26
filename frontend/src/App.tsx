@@ -2,9 +2,11 @@ import { FormEvent, useEffect, useState } from "react";
 
 import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
+import DemoPresetPanel from "./components/DemoPresetPanel";
 import LoginPage from "./components/LoginPage";
 import ApiKeySetup from "./components/ApiKeySetup";
 import ModeNav, { MODES } from "./components/ModeNav";
+import ModeSettingsButton from "./components/ModeSettingsButton";
 import type {
   ChatMessage,
   DatasheetContextItem,
@@ -13,7 +15,7 @@ import type {
   ContextInputType,
   ChatRequest,
 } from "./types";
-import { PROMPT_PRESETS, SENDGRID_PRESETS } from "./prompts";
+import { SENDGRID_PRESETS } from "./prompts";
 import { ThemeContext, ThemeType } from "./context/themeContext";
 import {
   chatWithAgent,
@@ -31,7 +33,7 @@ import {
   SENDGRID_2026_URL,
 } from "./datasheets";
 
-const MODE_DATASHEET: Record<Exclude<HarveyMode, "general">, { label: string; url: string }> = {
+const MODE_DATASHEET: Record<HarveyMode, { label: string; url: string }> = {
   "sendgrid-2025": { label: "Sendgrid@RAPIDAPI_datasheet-2025.yaml", url: SENDGRID_2025_URL },
   "sendgrid-2026": { label: "Sendgrid@RAPIDAPI_datasheet-2026.yaml", url: SENDGRID_2026_URL },
   mailersend: { label: "mailersend_v03.yaml", url: MAILERSEND_URL },
@@ -39,11 +41,13 @@ const MODE_DATASHEET: Record<Exclude<HarveyMode, "general">, { label: string; ur
   dailymotion: { label: "dailymotion_v03.yaml", url: DAILYMOTION_URL },
 };
 
-const MODE_PRESETS: Partial<Record<HarveyMode, typeof PROMPT_PRESETS>> = {
-  general: PROMPT_PRESETS,
+const MODE_PRESETS: Partial<Record<HarveyMode, PromptPreset[]>> = {
   "sendgrid-2025": SENDGRID_PRESETS,
   "sendgrid-2026": SENDGRID_PRESETS,
 };
+
+const DEMO_FALLBACK_RESPONSE =
+  "Esta es una respuesta de demostración. Inicia sesión para obtener respuestas en tiempo real del agente H.A.R.V.E.Y.";
 
 const initTheme = (): ThemeType => {
   if (typeof window === "undefined") return "light";
@@ -52,14 +56,20 @@ const initTheme = (): ThemeType => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
-function AppContent() {
+interface AppContentProps {
+  isDemo: boolean;
+  onLoginClick: () => void;
+}
+
+function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   const { auth, logout } = useAuth();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextItems, setContextItems] = useState<DatasheetContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
-  const [activeMode, setActiveMode] = useState<HarveyMode>("general");
+  const [activeMode, setActiveMode] = useState<HarveyMode>("sendgrid-2025");
+  const [activePresetId, setActivePresetId] = useState<string | null>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -69,11 +79,8 @@ function AppContent() {
   }, [theme]);
 
   const isSubmitDisabled =
-    isLoading || !question.trim() || (auth.role === "student" && !auth.apiKey);
+    isLoading || !question.trim() || (auth!.role === "student" && !auth!.apiKey);
 
-  const isLockedMode = activeMode !== "general";
-
-  // Only yaml-kind items need upload/delete on the backend static dir.
   const needsUpload = (item: DatasheetContextItem) =>
     item.kind === "yaml" && (item.origin === "user" || item.origin === "preset");
 
@@ -91,12 +98,14 @@ function AppContent() {
     if (inputs.length === 0) return null;
     const newItems = createContextItems(inputs);
 
-    const uploadPromises = newItems
-      .filter(needsUpload)
-      .map((item) => uploadDatasheet(`${item.id}.yaml`, item.value, auth.credentials));
+    if (!isDemo) {
+      const uploadPromises = newItems
+        .filter(needsUpload)
+        .map((item) => uploadDatasheet(`${item.id}.yaml`, item.value, auth!.credentials));
 
-    if (uploadPromises.length > 0) {
-      Promise.all(uploadPromises).catch((err) => console.error("Upload failed", err));
+      if (uploadPromises.length > 0) {
+        Promise.all(uploadPromises).catch((err) => console.error("Upload failed", err));
+      }
     }
 
     setContextItems((prev) => [...prev, ...newItems]);
@@ -108,19 +117,23 @@ function AppContent() {
   };
 
   const removeContextItem = (id: string) => {
-    const toDelete = contextItems.filter((item) => item.id === id && needsUpload(item));
-    toDelete.forEach((item) =>
-      deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
-    );
+    if (!isDemo) {
+      const toDelete = contextItems.filter((item) => item.id === id && needsUpload(item));
+      toDelete.forEach((item) =>
+        deleteDatasheet(`${item.id}.yaml`, auth!.credentials).catch(() => {})
+      );
+    }
     setContextItems((prev) => prev.filter((item) => item.id !== id));
   };
 
   const clearContext = () => {
-    contextItems
-      .filter(needsUpload)
-      .forEach((item) =>
-        deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
-      );
+    if (!isDemo) {
+      contextItems
+        .filter(needsUpload)
+        .forEach((item) =>
+          deleteDatasheet(`${item.id}.yaml`, auth!.credentials).catch(() => {})
+        );
+    }
     setContextItems([]);
   };
 
@@ -196,40 +209,52 @@ function AppContent() {
   const handleModeChange = (mode: HarveyMode) => {
     if (mode === activeMode) return;
 
-    // Delete any yaml-kind items that were uploaded to static dir
-    contextItems
-      .filter(needsUpload)
-      .forEach((item) =>
-        deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
-      );
+    if (!isDemo) {
+      contextItems
+        .filter(needsUpload)
+        .forEach((item) =>
+          deleteDatasheet(`${item.id}.yaml`, auth!.credentials).catch(() => {})
+        );
+    }
 
     setMessages([]);
     setQuestion("");
     setActiveMode(mode);
-
-    if (mode === "general") {
-      setContextItems([]);
-    } else {
-      setContextItems([buildModeContextItem(mode)]);
-    }
+    setActivePresetId(null);
+    setContextItems([buildModeContextItem(mode)]);
   };
 
   const handleNewConversation = () => {
     setMessages([]);
     setQuestion("");
+    setActivePresetId(null);
     setIsLoading(false);
 
-    if (activeMode === "general") {
-      clearContext();
-    } else {
-      // Keep the locked URL item, remove any yaml uploads the user may have added
+    if (!isDemo) {
       contextItems
         .filter(needsUpload)
         .forEach((item) =>
-          deleteDatasheet(`${item.id}.yaml`, auth.credentials).catch(() => {})
+          deleteDatasheet(`${item.id}.yaml`, auth!.credentials).catch(() => {})
         );
-      setContextItems((prev) => prev.filter((item) => item.kind === "yaml-url"));
     }
+    setContextItems((prev) => prev.filter((item) => item.kind === "yaml-url"));
+  };
+
+  const handleDemoPresetClick = (preset: PromptPreset) => {
+    setActivePresetId(preset.id);
+    const userMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "user",
+      content: preset.question,
+      createdAt: new Date().toISOString(),
+    };
+    const assistantMessage: ChatMessage = {
+      id: crypto.randomUUID(),
+      role: "assistant",
+      content: preset.demoResponse ?? DEMO_FALLBACK_RESPONSE,
+      createdAt: new Date().toISOString(),
+    };
+    setMessages([userMessage, assistantMessage]);
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -255,13 +280,13 @@ function AppContent() {
           role: message.role,
           content: message.content,
         })),
-        ...(auth.role === "student" && { api_key: auth.apiKey }),
+        ...(auth!.role === "student" && { api_key: auth!.apiKey }),
         ...buildChatPayload(contextItems),
       };
-      const data = await chatWithAgent(requestBody, auth.credentials);
+      const data = await chatWithAgent(requestBody, auth!.credentials);
 
       const chartHtml: string | undefined =
-        typeof data?.result?.payload?.html === 'string'
+        typeof data?.result?.payload?.html === "string"
           ? data.result.payload.html
           : undefined;
 
@@ -304,37 +329,47 @@ function AppContent() {
           <header className="header-bar">
             <div>
               <h1>
-                H.A.R.V.E.Y.{activeMode !== "general" && (
-                  <span className="mode-badge">{modeLabel}</span>
-                )}
+                H.A.R.V.E.Y. <span className="mode-badge">{modeLabel}</span>
               </h1>
-              <p>
-                {activeMode === "general"
-                  ? "Ask about API rate limits, quotas, and consumption using the Holistic Analysis and Regulation Virtual Expert for You (H.A.R.V.E.Y.) agent."
-                  : `Analysing the ${modeLabel} API — datasheet pre-loaded and locked.`}
-              </p>
+              <p>Analysing the {modeLabel} API — datasheet pre-loaded and locked.</p>
             </div>
             <div className="header-actions">
-              <span className="header-user">
-                {auth.username}
-                {auth.role === "student" && " · GEMINI"}
-              </span>
-              <button
-                type="button"
-                className="session-reset"
-                onClick={handleNewConversation}
-                disabled={isLoading}
-              >
-                New conversation
-              </button>
-              <button
-                type="button"
-                className="session-reset"
-                onClick={logout}
-                disabled={isLoading}
-              >
-                Log out
-              </button>
+              {isDemo ? (
+                <>
+                  <span className="demo-badge">DEMO</span>
+                  <button
+                    type="button"
+                    className="login-cta"
+                    onClick={onLoginClick}
+                  >
+                    Log in
+                  </button>
+                </>
+              ) : (
+                <>
+                  <span className="header-user">
+                    {auth!.username}
+                    {auth!.role === "student" && " · GEMINI"}
+                  </span>
+                  <ModeSettingsButton />
+                  <button
+                    type="button"
+                    className="session-reset"
+                    onClick={handleNewConversation}
+                    disabled={isLoading}
+                  >
+                    New conversation
+                  </button>
+                  <button
+                    type="button"
+                    className="session-reset"
+                    onClick={logout}
+                    disabled={isLoading}
+                  >
+                    Log out
+                  </button>
+                </>
+              )}
               <button
                 type="button"
                 className="theme-toggle"
@@ -346,36 +381,61 @@ function AppContent() {
             </div>
           </header>
 
-          <ModeNav
-            activeMode={activeMode}
-            onModeChange={handleModeChange}
-            disabled={isLoading}
-          />
+          {isDemo && (
+            <div className="demo-banner">
+              <span>
+                <strong>Demo mode</strong> — Select a preset question to explore H.A.R.V.E.Y.
+                Answers are illustrative. Log in to get real-time AI responses.
+              </span>
+              <button type="button" className="demo-banner-login" onClick={onLoginClick}>
+                Log in →
+              </button>
+            </div>
+          )}
 
-          <main>
+          {!isDemo && (
+            <ModeNav
+              activeMode={activeMode}
+              onModeChange={handleModeChange}
+              disabled={isLoading}
+            />
+          )}
+
+          <main className={isDemo && messages.length === 0 ? "main--demo-welcome" : ""}>
             <section className="chat-panel">
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
-                promptPresets={MODE_PRESETS[activeMode] ?? []}
-                onPresetSelect={handlePromptSelect}
+                promptPresets={MODE_PRESETS[activeMode as HarveyMode] ?? []}
+                onPresetSelect={isDemo ? handleDemoPresetClick : handlePromptSelect}
+                isDemo={isDemo}
               />
             </section>
-            <section className="control-panel">
-              <ControlPanel
-                question={question}
-                contextItems={contextItems}
-                isSubmitting={isLoading}
-                isSubmitDisabled={isSubmitDisabled}
-                lockContext={isLockedMode}
-                onQuestionChange={setQuestion}
-                onSubmit={handleSubmit}
-                onFileSelect={handleFilesSelected}
-                onContextAdd={addContextItem}
-                onContextRemove={removeContextItem}
-                onContextClear={clearContext}
-              />
-            </section>
+            {(!isDemo || messages.length > 0) && (
+              <section className="control-panel">
+                {isDemo ? (
+                  <DemoPresetPanel
+                    presets={MODE_PRESETS[activeMode as HarveyMode] ?? []}
+                    activePresetId={activePresetId}
+                    onSelect={handleDemoPresetClick}
+                  />
+                ) : (
+                  <ControlPanel
+                    question={question}
+                    contextItems={contextItems}
+                    isSubmitting={isLoading}
+                    isSubmitDisabled={isSubmitDisabled}
+                    lockContext
+                    onQuestionChange={setQuestion}
+                    onSubmit={handleSubmit}
+                    onFileSelect={handleFilesSelected}
+                    onContextAdd={addContextItem}
+                    onContextRemove={removeContextItem}
+                    onContextClear={clearContext}
+                  />
+                )}
+              </section>
+            )}
           </main>
         </div>
       </ThemeContext.Provider>
@@ -385,11 +445,17 @@ function AppContent() {
 
 function App() {
   const { auth } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
 
-  if (!auth) return <LoginPage />;
-  if (auth.role === "student" && !auth.apiKey) return <ApiKeySetup />;
+  // Hide login page automatically after successful login
+  useEffect(() => {
+    if (auth) setShowLogin(false);
+  }, [auth]);
 
-  return <AppContent />;
+  if (showLogin && !auth) return <LoginPage onBack={() => setShowLogin(false)} />;
+  if (auth?.role === "student" && !auth.apiKey) return <ApiKeySetup />;
+
+  return <AppContent isDemo={!auth} onLoginClick={() => setShowLogin(true)} />;
 }
 
 export default App;
