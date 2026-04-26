@@ -49,6 +49,8 @@ const MODE_PRESETS: Partial<Record<HarveyMode, PromptPreset[]>> = {
   "sendgrid-2026": SENDGRID_PRESETS,
 };
 
+const DEFAULT_MODE: HarveyMode = "sendgrid-2025";
+
 const DEMO_FALLBACK_RESPONSE =
   "Esta es una respuesta de demostración. Inicia sesión para obtener respuestas en tiempo real del agente H.A.R.V.E.Y.";
 
@@ -141,10 +143,13 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   const { queryMode } = useAppMode();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
-  const [contextItems, setContextItems] = useState<DatasheetContextItem[]>([]);
+  const [contextItems, setContextItems] = useState<DatasheetContextItem[]>(() => {
+    const { label, url } = MODE_DATASHEET[DEFAULT_MODE];
+    return [{ id: crypto.randomUUID(), kind: "yaml-url" as const, label, value: url, origin: "preset" as const }];
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
-  const [activeMode, setActiveMode] = useState<HarveyMode>("sendgrid-2025");
+  const [activeMode, setActiveMode] = useState<HarveyMode>(DEFAULT_MODE);
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
 

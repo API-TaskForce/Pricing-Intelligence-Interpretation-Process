@@ -889,8 +889,6 @@ class HarveyAgent:
 
     def _mentions_batch_size(self, text: str) -> bool:
         lowered = text.lower()
-        if re.search(r"\b\d+(?:[.,]\d+)?\s*(emails?|correos?|mensajes?|mb|mbs|units?)\b", lowered):
-            return True
         call_patterns = (
             "por llamada",
             "por peticion",
@@ -900,9 +898,9 @@ class HarveyAgent:
             "cada llamada",
             "each request",
         )
-        return any(pattern in lowered for pattern in call_patterns) and bool(
-            re.search(r"\b\d+(?:[.,]\d+)?\b", lowered)
-        )
+        has_per_call = any(pattern in lowered for pattern in call_patterns)
+        has_number = bool(re.search(r"\b\d+(?:[.,]\d+)?\b", lowered))
+        return has_per_call and has_number
 
     def _looks_like_reply_to_assistant_prompt(
         self,
