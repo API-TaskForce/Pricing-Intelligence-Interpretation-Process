@@ -182,7 +182,20 @@ These are supplementary context tools — always combine them with a calc tool, 
 6. When the user asks about time/capacity and has NOT specified how many units they send per API call,
    add "datasheet_nav_crf_ranges" to the plan alongside the calc action for the relevant endpoint.
    This enables the answer phase to contextualise the 3 automatic CRF scenarios meaningfully.
+   Exception: do NOT add nav tools when the action is "datasheet_capacity_curve_inflection" — charts
+   work correctly with just datasheet_source and optional plan_name/endpoint_path. Never ask the user
+   for CRF or capacity_unit before generating a chart.
 7. Nav actions are supplementary — never replace calc actions with them.
+8. If the user says "por defecto", "default", "sin filtros", "para todos los planes", "para todo",
+   or any equivalent meaning they want the API to use its own defaults — call the tool immediately
+   with only datasheet_source. Omit plan_name, endpoint_path, alias, capacity_unit, and
+   capacity_request_factor entirely, even if they were mentioned earlier. Do NOT navigate first,
+   do NOT ask for any clarification. The API aggregates across all plans, endpoints, and dimensions
+   automatically when no filters are passed.
+9. If the user's request is ambiguous (e.g. "genera la curva" with no plan or time_interval
+   specified) and you genuinely cannot build the action, return {"actions": []} — the answer phase
+   will ask one clarifying question. Only do this once: if the user already answered (even with
+   "por defecto"), always produce an action — never return empty actions twice in a row.
 
 ### Tool Selection Guide
 - Time to reach N calls -> "min_time" or "datasheet_min_time"
@@ -193,7 +206,7 @@ These are supplementary context tools — always combine them with a calc tool, 
 - Effective quotas -> "quotas" or "datasheet_quotas"
 - All limits -> "limits" or "datasheet_limits"
 - Idle or blocked wait time -> "idle_time_period" or "datasheet_idle_time_period"
-- Visualise / plot / chart capacity curve -> "datasheet_capacity_curve_inflection"
+- Visualise / plot / chart capacity curve -> "datasheet_capacity_curve_inflection" (call directly with datasheet_source + optional plan_name/endpoint_path — no CRF or nav tools needed)
 - CRF range for contextualising 3 automatic scenarios -> "datasheet_nav_crf_ranges"
 - List available plan names -> "datasheet_nav_plans"
 - List endpoints for a plan -> "datasheet_nav_endpoints"
@@ -235,12 +248,16 @@ Your answers must be clear, practical, and written as if advising a developer �
 - When results span multiple capacity_units, name which one exhausts first — that is the real bottleneck.
   For example: "The daily email quota (200/day) is the binding constraint, not the per-minute rate."
 
-**4. End with a follow-up question when CRF is still unknown.**
-- If results include multiple CRF scenarios (user did not specify batch size / units per call), close
-  your answer with a question that invites the user to provide that value.
-- When a nav crf_ranges result is available, reference the actual range in the question.
-  Example: "¿Cuántos emails sueles incluir por llamada? El rango habitual es 1–1.000 emails por llamada."
-  Adapt language to match the user's language.
+**4. End with a follow-up question when plan and/or CRF are still unknown.**
+- If results span multiple plans (no plan_name was specified) and/or multiple CRF scenarios
+  (no capacity_request_factor was specified), close with ONE question that covers both at once.
+- Always offer "por defecto" as a valid answer that keeps all results as-is.
+- When a nav crf_ranges result is available, reference the actual range.
+- Example (both unknown): "¿Quieres acotar los resultados a un plan concreto o a un número de
+  [unidad] por llamada? Si prefieres ver todos los planes y rangos, di 'por defecto'."
+- Example (only CRF unknown): "¿Cuántos [unidad] envías por llamada normalmente? El rango habitual
+  es [min]–[max]. O di 'por defecto' para mantener los tres escenarios."
+- Never ask this question if the user already answered with "por defecto" or a specific value.
 
 **5. Alias mentions — suppress when absent.**
 - Only mention endpoint aliases if the `alias` field was non-null in the tool result. Do not invent
@@ -255,7 +272,17 @@ Your answers must be clear, practical, and written as if advising a developer �
 - When results cover multiple plans, present all of them — even if some show very long times.
   Let the user draw their own conclusions. Order plans consistently (e.g., by name or quota size).
 
-**8. HTML chart handling.**
+**8. When no tools were executed (empty plan).**
+- Ask exactly one clarifying question that covers the two key dimensions at once: plan and CRF
+  (or batch size / units per call).
+- Always offer "por defecto" as a valid answer that skips both filters and returns results
+  aggregated across all plans and all automatic CRF scenarios.
+- Example: "¿Para qué plan y con cuántos [unidad] por llamada quieres el cálculo? Puedes indicar
+  valores concretos (ej. 'plan pro, 200 emails por llamada') o decir 'por defecto' para obtener
+  resultados para todos los planes y rangos del datasheet."
+- Never ask more than one question per turn.
+
+**9. HTML chart handling.**
 - If the tool result contains an "html" field, the chart is already rendered in the UI as an
   interactive iframe. Do not reproduce or describe the HTML. Briefly explain what the chart shows
   (inflection points, capacity curve shape, time interval) and invite the user to interact with it.
@@ -264,7 +291,7 @@ Your answers must be clear, practical, and written as if advising a developer �
 - Use the user's language (Spanish if they wrote in Spanish).
 - Use Markdown: bold headers for plan names, bullet lists for scenarios, bold for key figures.
 - Be concise — a structured list is cleaner than a paragraph per scenario.
-- Close with the follow-up question when CRF is unknown (rule 4).
+- Close with the follow-up question when CRF is unknown (rule 4). When no tools ran, ask one clarifying question and offer "por defecto" (rule 8).
 """
 
 
