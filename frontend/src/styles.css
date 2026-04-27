@@ -2496,6 +2496,26 @@ button.context-add-url {
   line-height: 1.4;
 }
 
+.mode-settings-option--disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.mode-settings-coming-soon {
+  display: inline-block;
+  margin-left: 0.5rem;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: var(--text-muted);
+  color: var(--card-bg);
+  vertical-align: middle;
+  text-transform: uppercase;
+}
+
 .mode-settings-check {
   position: absolute;
   right: 1rem;

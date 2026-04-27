@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppMode, QueryMode } from "../context/appModeContext";
 
-const MODES: { value: QueryMode; label: string; description: string }[] = [
+const MODES: { value: QueryMode; label: string; description: string; comingSoon?: boolean }[] = [
   {
     value: "guided",
     label: "Guided",
@@ -13,6 +13,7 @@ const MODES: { value: QueryMode; label: string; description: string }[] = [
     label: "Autonomous",
     description:
       "Uses a pre-loaded configuration. Whether the question is complete or ill-posed, it answers immediately using the configured consumption mode (fastest, slowest, safest…).",
+    comingSoon: true,
   },
 ];
 
@@ -76,12 +77,16 @@ export default function ModeSettingsButton() {
               key={mode.value}
               type="button"
               role="menuitem"
-              className={`mode-settings-option${queryMode === mode.value ? " mode-settings-option--active" : ""}`}
-              onClick={() => { setQueryMode(mode.value); setOpen(false); }}
+              disabled={mode.comingSoon}
+              className={`mode-settings-option${queryMode === mode.value ? " mode-settings-option--active" : ""}${mode.comingSoon ? " mode-settings-option--disabled" : ""}`}
+              onClick={() => { if (!mode.comingSoon) { setQueryMode(mode.value); setOpen(false); } }}
             >
-              <span className="mode-settings-option-label">{mode.label}</span>
+              <span className="mode-settings-option-label">
+                {mode.label}
+                {mode.comingSoon && <span className="mode-settings-coming-soon">Coming soon</span>}
+              </span>
               <span className="mode-settings-option-desc">{mode.description}</span>
-              {queryMode === mode.value && (
+              {queryMode === mode.value && !mode.comingSoon && (
                 <svg
                   className="mode-settings-check"
                   xmlns="http://www.w3.org/2000/svg"

@@ -153,6 +153,16 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   const [activePresetId, setActivePresetId] = useState<string | null>(null);
   const [pendingClarification, setPendingClarification] = useState<ClarificationRequest | null>(null);
 
+  // Reset conversation on logout (isDemo flips false → true)
+  useEffect(() => {
+    if (isDemo) {
+      setMessages([]);
+      setQuestion("");
+      setPendingClarification(null);
+      setActiveMode(DEFAULT_MODE);
+    }
+  }, [isDemo]);
+
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     if (typeof window !== "undefined") {
