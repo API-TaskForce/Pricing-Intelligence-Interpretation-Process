@@ -15,20 +15,12 @@ interface Props {
 
 function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect, isDemo = false }: Props) {
   const [activeChart, setActiveChart] = useState<string | null>(null);
-  const lastMessageRef = useRef<HTMLElement>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when loading starts so the user sees "Processing..."
+  // Keep the newest content in view without snapping the latest message to the top.
   useEffect(() => {
-    if (isLoading) bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [isLoading]);
-
-  // Scroll to the TOP of the newest message when it arrives
-  useEffect(() => {
-    if (messages.length > 0 && !isLoading) {
-      lastMessageRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    }
-  }, [messages.length]);
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages.length, isLoading]);
 
   return (
     <div className="chat-transcript" aria-live="polite" aria-busy={isLoading}>
@@ -64,7 +56,6 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
       {messages.map((message, index) => (
         <article
           key={message.id}
-          ref={index === messages.length - 1 ? lastMessageRef : null}
           className={`message message-${message.role}`}
         >
           <header>

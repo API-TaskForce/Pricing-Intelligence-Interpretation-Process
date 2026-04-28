@@ -285,6 +285,7 @@ main.main--demo-welcome {
   transition: all 0.3s ease;
   display: flex;
   flex-direction: column;
+  min-height: 0;
   height: 100%;
   max-height: 100%;
   overflow: hidden;
@@ -298,12 +299,12 @@ main.main--demo-welcome {
 .chat-transcript {
   display: flex;
   flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
   gap: 1.25rem;
   overflow-y: auto;
   overflow-x: hidden;
   padding-right: 0.5rem;
-  height: 100%;
-  max-height: 100%;
   scrollbar-width: thin;
   scrollbar-color: var(--card-border) transparent;
 }

@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from typing import Optional
 
@@ -19,6 +19,10 @@ from openai import OpenAI
 
 
 logger = logging.getLogger(__name__)
+
+# Standard chat message format used throughout the codebase.
+# role must be "system", "user", or "assistant".
+ChatMessage = Dict[str, str]
 
 
 @dataclass
@@ -41,19 +45,24 @@ class OpenAIClient:
 
     def make_full_request(
         self,
-        initial_prompt: str,
+        messages: List[ChatMessage],
         *,
         json_output: bool = True,
     ) -> str:
+        total_length = sum(len(m.get("content", "")) for m in messages)
+        last_user = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
+        )
         logger.info(
-            "harvey.llm.request model=%s prompt_length=%d prompt_preview=%s",
+            "harvey.llm.request model=%s messages=%d total_length=%d last_user_preview=%s",
             self._config.model,
-            len(initial_prompt),
-            self._truncate_for_log(initial_prompt),
+            len(messages),
+            total_length,
+            self._truncate_for_log(last_user),
         )
 
         try:
-            raw_response, finish_reason = self._send_prompt(initial_prompt, self._config.model)
+            raw_response, finish_reason = self._send_prompt(messages, self._config.model)
         except RateLimitError as exc:
             logger.error("harvey.llm.rate_limit_failure model=%s", self._config.model)
             raise RuntimeError("LLM rate limit reached. Please retry shortly.") from exc
@@ -93,7 +102,7 @@ class OpenAIClient:
         )
         return cleaned_response
 
-    def _send_prompt(self, prompt: str, model: str) -> tuple[str, str]:
+    def _send_prompt(self, messages: List[ChatMessage], model: str) -> tuple[str, str]:
         delay = max(self._config.api_retry_backoff, 0.5)
         max_delay = max(self._config.api_retry_backoff_max, delay)
         multiplier = max(self._config.api_retry_multiplier, 1.0)
@@ -102,7 +111,7 @@ class OpenAIClient:
             try:
                 completion = self._client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,  # type: ignore[arg-type]
                 )
                 message = completion.choices[0].message
                 content = message.content or ""
@@ -339,15 +348,20 @@ class GeminiClient:
                 seen.add(m)
                 self._models.append(m)
 
-    def make_full_request(self, initial_prompt: str, *, json_output: bool = True) -> str:
+    def make_full_request(self, messages: List[ChatMessage], *, json_output: bool = True) -> str:
+        total_length = sum(len(m.get("content", "")) for m in messages)
+        last_user = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
+        )
         logger.info(
-            "harvey.llm.request model=%s prompt_length=%d prompt_preview=%s",
+            "harvey.llm.request model=%s messages=%d total_length=%d last_user_preview=%s",
             self._config.model,
-            len(initial_prompt),
-            _truncate(initial_prompt),
+            len(messages),
+            total_length,
+            _truncate(last_user),
         )
         try:
-            raw = self._post_with_fallback(initial_prompt)
+            raw = self._post_with_fallback(messages)
         except RuntimeError:
             raise
         except Exception as exc:
@@ -363,11 +377,11 @@ class GeminiClient:
             return _ensure_json(cleaned)
         return cleaned
 
-    def _post_with_fallback(self, prompt: str) -> str:
+    def _post_with_fallback(self, messages: List[ChatMessage]) -> str:
         """Try each model in order; skip to the next on 429 or 404 (model unavailable)."""
         for model in self._models:
             try:
-                return self._post(prompt, model)
+                return self._post(messages, model)
             except (_RateLimitedError, _ModelUnavailableError):
                 next_models = self._models[self._models.index(model) + 1:] if model != self._models[-1] else []
                 logger.warning(
@@ -379,10 +393,27 @@ class GeminiClient:
         logger.error("harvey.llm.rate_limit_all_models models=%s", self._models)
         raise RuntimeError("LLM rate limit reached on all available models. Please retry shortly.")
 
-    def _post(self, prompt: str, model: str) -> str:
+    def _post(self, messages: List[ChatMessage], model: str) -> str:
         url = f"{_GEMINI_NATIVE_BASE}/{model}:generateContent"
         params = {"key": self._config.api_key}
-        body = {"contents": [{"role": "user", "parts": [{"text": prompt}]}]}
+
+        # Convert OpenAI-style messages to Gemini native format.
+        # System messages go into systemInstruction; user/assistant become user/model turns.
+        system_parts: List[Dict[str, Any]] = []
+        contents: List[Dict[str, Any]] = []
+        for msg in messages:
+            role = msg.get("role", "user")
+            content = msg.get("content", "")
+            if role == "system":
+                system_parts.append({"text": content})
+            else:
+                gemini_role = "model" if role == "assistant" else "user"
+                contents.append({"role": gemini_role, "parts": [{"text": content}]})
+
+        body: Dict[str, Any] = {"contents": contents}
+        if system_parts:
+            body["systemInstruction"] = {"parts": system_parts}
+
         try:
             with _httpx.Client(timeout=120.0) as client:
                 response = client.post(

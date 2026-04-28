@@ -11,6 +11,7 @@ from .clients import MCPWorkflowClient
 from .config import get_settings
 from .logging import get_logger
 from .llm_client import (
+    ChatMessage,
     GeminiClient,
     OpenAIClient,
     OpenAIClientConfig,
@@ -77,15 +78,15 @@ Action shapes - RateObject/QuotaObject: {"value": number, "unit": string, "perio
   {"name": "quotas", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "limits", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "idle_time_period", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
-  {"name": "datasheet_min_time", "datasheet_source": string, "capacity_goal": number, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number}
-  {"name": "datasheet_capacity_at", "datasheet_source": string, "time": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number}
-  {"name": "datasheet_capacity_during", "datasheet_source": string, "end_instant": string, "start_instant"?: string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number}
-  {"name": "datasheet_quota_exhaustion_threshold", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string}
-  {"name": "datasheet_rates", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string}
-  {"name": "datasheet_quotas", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string}
-  {"name": "datasheet_limits", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string}
-  {"name": "datasheet_idle_time_period", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string}
-  {"name": "datasheet_capacity_curve_inflection", "datasheet_source": string, "time_interval": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number}
+  {"name": "datasheet_min_time", "datasheet_source": string, "capacity_goal": number, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_capacity_at", "datasheet_source": string, "time": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_capacity_during", "datasheet_source": string, "end_instant": string, "start_instant"?: string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_quota_exhaustion_threshold", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_rates", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_quotas", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_limits", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_idle_time_period", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
+  {"name": "datasheet_capacity_curve_inflection", "datasheet_source": string, "time_interval": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
 
 Nav tools (supplementary context — use alongside calc tools, never alone):
   {"name": "datasheet_nav_plans", "datasheet_source": string}
@@ -133,21 +134,21 @@ Your goal is to create a precise execution plan to answer the user's question ab
 Use these when the question is about an uploaded datasheet or a datasheet URL.
 
 - "datasheet_min_time": Same semantics as "min_time", but reads constraints from a datasheet.
-  Inputs: datasheet_source, capacity_goal, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, capacity_goal, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_capacity_at": Same semantics as "capacity_at", but reads constraints from a datasheet.
-  Inputs: datasheet_source, time, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, time, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_capacity_during": Same semantics as "capacity_during", but reads constraints from a datasheet.
-  Inputs: datasheet_source, end_instant, optional start_instant, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, end_instant, optional start_instant, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_quota_exhaustion_threshold": Reads quota exhaustion thresholds from a datasheet.
-  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_rates": Reads effective rates from a datasheet.
-  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_quotas": Reads effective quotas from a datasheet.
-  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_limits": Reads combined limits from a datasheet.
-  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_idle_time_period": Reads idle time periods from a datasheet.
-  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias.
+  Inputs: datasheet_source, optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
 - "datasheet_capacity_curve_inflection": Generates an interactive inflection-point capacity curve chart from a datasheet.
   Returns an embedded HTML document rendered as an interactive visual in the UI — use this when the user asks to visualise, plot, or chart the capacity curve or inflection points.
   Inputs: datasheet_source, time_interval (e.g. '1h', '1day', '1month'), optional plan_name, optional endpoint_path, optional alias, optional capacity_unit, optional capacity_request_factor.
@@ -159,6 +160,8 @@ Use these when the question is about an uploaded datasheet or a datasheet URL.
 - endpoint_path and alias are optional filters. If absent, the tool may return all matching endpoints and aliases.
 - Datasheet outputs can be nested by plan, endpoint, alias, dimension, and capacity_request_factor.
 - capacity_request_factor (CRF) means the capacity cost per request. Higher CRF means each request consumes more quota/rate budget.
+  - Single unit: pass a plain number AND set capacity_unit (e.g., capacity_unit="emails", capacity_request_factor=2).
+  - Multiple units at once: pass a JSON string dict WITHOUT capacity_unit (e.g., capacity_request_factor='{"emails":500,"MBs":0.256}').
 - capacity_unit filters results to a single dimension (e.g., "emails", "MBs"). Include it when the user asks about a specific unit.
 
 ### Datasheet Nav Tools
@@ -182,9 +185,12 @@ These are supplementary context tools — always combine them with a calc tool, 
 6. When the user asks about time/capacity and has NOT specified how many units they send per API call,
    add "datasheet_nav_crf_ranges" to the plan alongside the calc action for the relevant endpoint.
    This enables the answer phase to contextualise the 3 automatic CRF scenarios meaningfully.
-   Exception: do NOT add nav tools when the action is "datasheet_capacity_curve_inflection" — charts
-   work correctly with just datasheet_source and optional plan_name/endpoint_path. Never ask the user
-   for CRF or capacity_unit before generating a chart.
+   Exception: do NOT add nav tools when the action is "datasheet_capacity_curve_inflection".
+   Do NOT ask the user for CRF or capacity_unit as a clarification step before generating a chart.
+   This prohibition is about extra clarification only: if the user already gave a CRF/batch size
+   (including shorthand like "CRF 500"), you MUST pass it as capacity_request_factor in the chart action.
+   However, if plan_name, capacity_unit, or capacity_request_factor are already known from the
+   user's current message or from conversation history, ALWAYS include them in the chart action.
 7. Nav actions are supplementary — never replace calc actions with them.
 8. If the user says "para todos los planes", "todos los planes", "para todo", "sin filtros", or sends
    a clarification answer from the UI selecting all plans — call the tool immediately with only
@@ -196,6 +202,15 @@ These are supplementary context tools — always combine them with a calc tool, 
    specified) and you genuinely cannot build the action, return {"actions": []} — the answer phase
    will ask one clarifying question. Only do this once: if the user already answered, always produce
    an action — never return empty actions twice in a row.
+10. If the user names a plan (e.g. "plan pro", "free tier", "el plan Essentials"), ALWAYS include
+    plan_name with that exact value. Never enter clarify mode for plan_name when the user has already
+    named one — trust it and call the calc tool directly. If the tool returns no results for that
+    plan, the answer phase will handle it.
+11. If no plan is named and the question is not explicitly cross-plan, the system will automatically
+    ask the user to select a plan before running calc tools. When clarifying for plan, always include
+    "datasheet_nav_plans" in the actions so the UI can show a dropdown. Once the user provides a
+    plan name (in a clarification answer), include it as plan_name in the calc action — never omit
+    it when the user has already answered.
 
 ### Tool Selection Guide
 - Time to reach N calls -> "min_time" or "datasheet_min_time"
@@ -206,7 +221,8 @@ These are supplementary context tools — always combine them with a calc tool, 
 - Effective quotas -> "quotas" or "datasheet_quotas"
 - All limits -> "limits" or "datasheet_limits"
 - Idle or blocked wait time -> "idle_time_period" or "datasheet_idle_time_period"
-- Visualise / plot / chart capacity curve -> "datasheet_capacity_curve_inflection" (call directly with datasheet_source + optional plan_name/endpoint_path — no CRF or nav tools needed)
+- Visualise / plot / chart capacity curve -> "datasheet_capacity_curve_inflection" (no clarification step needed — include plan_name, capacity_unit, capacity_request_factor if already known from context)
+- Example chart with explicit CRF -> {"name":"datasheet_capacity_curve_inflection","datasheet_source":"uploaded://datasheet","time_interval":"2h","plan_name":"pro","capacity_unit":"emails","capacity_request_factor":500}
 - CRF range for contextualising 3 automatic scenarios -> "datasheet_nav_crf_ranges"
 - List available plan names -> "datasheet_nav_plans"
 - List endpoints for a plan -> "datasheet_nav_endpoints"
@@ -256,6 +272,15 @@ Your answers must be clear, practical, and written as if advising a developer �
 - Example (both unknown): "¿Quieres acotar los resultados a un plan concreto o a un número de [unidad] por llamada?"
 - Example (only CRF unknown): "¿Cuántos [unidad] envías por llamada normalmente? El rango habitual es [min]–[max]."
 - Never ask this question if the user already specified a plan or a value.
+
+**4b. When the user specified a CRF that has no matching scenario.**
+- If the tool result contains multiple CRF scenarios AND the user explicitly provided a CRF value in
+  their question or clarification answer, do NOT ask them to choose again — they already chose.
+- Instead, state clearly that the exact value they specified is not a pre-defined scenario, list the
+  available scenarios matter-of-factly, and let them decide without prompting.
+- Example: "Enviando 3 emails por llamada no es un escenario predefinido en este plan. Los escenarios
+  disponibles son 1, 500 y 1000 emails por llamada — puedes ver los resultados para cada uno arriba."
+- Never ask "¿qué valor quieres usar?" when the user already stated one.
 
 **5. Alias mentions — suppress when absent.**
 - Only mention endpoint aliases if the `alias` field was non-null in the tool result. Do not invent
@@ -310,7 +335,10 @@ ANSWER_CLARIFICATION_PROMPT = """Additional answer rules (apply ONLY when Plan.r
 - Use nav results to ask a short, grounded follow-up that helps the user provide the missing selector(s).
 - Prefer one natural message. Ask in this order when relevant: plan -> endpoint -> alias -> capacity unit -> units per call.
 - Do NOT enumerate plan names, endpoint paths, aliases, or capacity units in your follow-up question — the UI already shows all available options as interactive dropdowns. Mentioning them in text is redundant.
-- If CRF ranges are available from nav results, mention the exact min/max range in domain language — this is the only value the UI does not show as a dropdown.
+- If CRF ranges are available from nav results, mention them as the boundary of the predefined scenarios,
+  not as a continuous range. Say "los escenarios van de [min] a [max] [unidad] por llamada" — do NOT say
+  "cualquier valor entre X e Y es válido", because only discrete predefined values in the datasheet work.
+  Ask the user what they actually send per call; the system will match the closest scenario or show all.
 - Do NOT suggest typing "por defecto" or any special keyword.
 - Do not describe worst/typical/best scenarios yet.
 """
@@ -422,15 +450,20 @@ class HarveyAgent:
         attempt_errors: List[str] = []
         effective_llm = llm if llm is not None else self._llm
         for _ in range(PLAN_REQUEST_MAX_ATTEMPTS):
-            attempt_messages = list(messages)
+            attempt_messages: List[ChatMessage] = list(messages)
             if attempt_errors:
-                attempt_messages.append(f"Previous attempt issues: {attempt_errors[-1]}")
-                attempt_messages.append("Return a corrected JSON plan that satisfies all requirements.")
+                attempt_messages.append({
+                    "role": "user",
+                    "content": (
+                        f"Previous attempt issues: {attempt_errors[-1]}\n"
+                        "Return a corrected JSON plan that satisfies all requirements."
+                    ),
+                })
 
             try:
                 text = await asyncio.to_thread(
                     effective_llm.make_full_request,
-                    "\n".join(attempt_messages),
+                    attempt_messages,
                     json_output=True,
                 )
             except ValueError as exc:
@@ -458,57 +491,65 @@ class HarveyAgent:
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
         query_mode: str = "guided",
-    ) -> List[str]:
-        messages: List[str] = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
+    ) -> List[ChatMessage]:
+        # Static system content — identical across calls, eligible for prompt caching.
+        system_parts = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
         if query_mode == "autonomous":
-            messages.append(
+            system_parts.append(
                 "Mode: AUTONOMOUS. Never use response_mode 'clarify'. "
                 "Always answer directly using all available plans when plan_name is not specified. "
                 "Omit plan_name from actions to evaluate all plans."
             )
         else:
-            messages.append(PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS)
+            system_parts.append(PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS)
+
+        messages: List[ChatMessage] = [
+            {"role": "system", "content": "\n\n".join(system_parts)}
+        ]
+
+        # Conversation history as proper user/assistant turns.
         self._append_history_messages(messages, history)
-        messages.append(f"Question: {question}")
-        self._append_datasheet_messages(messages, datasheet_alias_map)
-        self._append_url_references(messages, datasheet_urls)
+
+        # Final user message: question + dynamic context.
+        user_parts = [f"Question: {question}"]
+        datasheet_ctx = self._datasheet_context_text(datasheet_alias_map)
+        if datasheet_ctx:
+            user_parts.append(datasheet_ctx)
+        url_ctx = self._url_context_text(datasheet_urls)
+        if url_ctx:
+            user_parts.append(url_ctx)
         if query_mode != "autonomous":
-            self._append_clarification_priority_guidance(
-                messages,
+            guidance = self._clarification_priority_text(
                 question=question,
                 datasheet_alias_map=datasheet_alias_map,
                 datasheet_urls=datasheet_urls,
                 history=history,
             )
+            if guidance:
+                user_parts.append(guidance)
+
+        messages.append({"role": "user", "content": "\n\n".join(user_parts)})
         return messages
 
-    def _append_datasheet_messages(
-        self,
-        messages: List[str],
-        datasheet_alias_map: Dict[str, str],
-    ) -> None:
+    def _datasheet_context_text(self, datasheet_alias_map: Dict[str, str]) -> str:
         if not datasheet_alias_map:
-            return
-        messages.append(
+            return ""
+        aliases = "\n".join(datasheet_alias_map.keys())
+        return (
             "API datasheet aliases loaded. Use each alias as datasheet_source "
-            "in datasheet_* actions. The full content is resolved at execution time:"
+            "in datasheet_* actions. The full content is resolved at execution time:\n"
+            + aliases
         )
-        for alias in datasheet_alias_map:
-            messages.append(alias)
 
-    def _append_url_references(
-        self,
-        messages: List[str],
-        datasheet_urls: Optional[List[str]],
-    ) -> None:
+    def _url_context_text(self, datasheet_urls: Optional[List[str]]) -> str:
         if not datasheet_urls:
-            return
-        messages.append(
+            return ""
+        urls = "\n".join(datasheet_urls)
+        return (
             "Remote API datasheet URLs. Pass each URL directly as datasheet_source "
-            "in datasheet_* actions. Do not modify the URL:"
+            "in datasheet_* actions. Do not modify the URL:\n"
+            + urls
         )
-        for url in datasheet_urls:
-            messages.append(url)
 
     # ------------------------------------------------------------------
     # Answer generation
@@ -524,27 +565,43 @@ class HarveyAgent:
         history: Optional[List[Dict[str, str]]] = None,
         llm: Optional[OpenAIClient | GeminiClient] = None,
     ) -> str:
-        messages = [ANSWER_PROMPT, ANSWER_CLARIFICATION_PROMPT]
+        # Only include clarification rules when the plan is actually in clarify mode.
+        system_parts = [ANSWER_PROMPT]
+        if plan.get("response_mode") == "clarify":
+            system_parts.append(ANSWER_CLARIFICATION_PROMPT)
+
+        messages: List[ChatMessage] = [
+            {"role": "system", "content": "\n\n".join(system_parts)}
+        ]
+
         self._append_history_messages(messages, history)
-        messages.append(f"Question: {question}")
-        messages.append(f"Plan: {json.dumps(plan, ensure_ascii=False)}")
+
+        user_parts = [
+            f"Question: {question}",
+            f"Plan: {json.dumps(plan, ensure_ascii=False)}",
+        ]
 
         summary = self._summarize_tool_payload(payload)
         if summary:
-            messages.append(f"Tool payload summary: {json.dumps(summary, ensure_ascii=False)}")
+            user_parts.append(f"Tool payload summary: {json.dumps(summary, ensure_ascii=False)}")
 
         chunks = self._serialise_payload_chunks(payload)
         for index, chunk in enumerate(chunks, start=1):
-            messages.append(f"Tool payload chunk {index}/{len(chunks)}:")
-            messages.append(chunk)
+            user_parts.append(f"Tool payload chunk {index}/{len(chunks)}:\n{chunk}")
 
-        self._append_datasheet_messages(messages, datasheet_alias_map)
-        self._append_url_references(messages, datasheet_urls)
+        datasheet_ctx = self._datasheet_context_text(datasheet_alias_map)
+        if datasheet_ctx:
+            user_parts.append(datasheet_ctx)
+        url_ctx = self._url_context_text(datasheet_urls)
+        if url_ctx:
+            user_parts.append(url_ctx)
+
+        messages.append({"role": "user", "content": "\n\n".join(user_parts)})
 
         effective_llm = llm if llm is not None else self._llm
         response = await asyncio.to_thread(
             effective_llm.make_full_request,
-            "\n".join(messages),
+            messages,
             json_output=False,
         )
         return response or "No answer could be generated."
@@ -595,15 +652,14 @@ class HarveyAgent:
             normalised["clarification_fields"] = clarification_fields
         return normalised
 
-    def _append_clarification_priority_guidance(
+    def _clarification_priority_text(
         self,
-        messages: List[str],
         *,
         question: str,
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]],
         history: Optional[List[Dict[str, str]]],
-    ) -> None:
+    ) -> str:
         fields = self._infer_missing_clarification_fields(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
@@ -611,12 +667,9 @@ class HarveyAgent:
             history=history,
         )
         if not fields:
-            return
-
-        messages.append(
-            "Clarification priority: ask a follow-up before running calc tools if the plan would otherwise be imprecise."
-        )
-        messages.append(
+            return ""
+        return (
+            "Clarification priority: ask a follow-up before running calc tools if the plan would otherwise be imprecise.\n"
             "Likely missing selectors for this turn: " + ", ".join(fields)
         )
 
@@ -807,6 +860,8 @@ class HarveyAgent:
     ) -> bool:
         if self._looks_like_reply_to_assistant_prompt(question, history, expected="plan"):
             return False
+        if self._history_mentions_plan(history):
+            return False
         if self._asks_for_cross_plan_answer(question) or self._asks_for_plan_recommendation(question):
             return False
         if self._mentions_plan_explicitly(question):
@@ -820,9 +875,60 @@ class HarveyAgent:
     ) -> bool:
         if self._looks_like_reply_to_assistant_prompt(question, history, expected="capacity_request_factor"):
             return False
+        if self._history_mentions_capacity_request_factor(history):
+            return False
         if self._mentions_batch_size(question):
             return False
         return True
+
+    def _history_mentions_plan(self, history: Optional[List[Dict[str, str]]]) -> bool:
+        return self._history_contains_user_signal(
+            history,
+            lambda content: self._mentions_plan_explicitly(content),
+            expected="plan",
+        )
+
+    def _history_mentions_capacity_request_factor(
+        self,
+        history: Optional[List[Dict[str, str]]],
+    ) -> bool:
+        return self._history_contains_user_signal(
+            history,
+            lambda content: self._mentions_batch_size(content),
+            expected="capacity_request_factor",
+        )
+
+    def _history_contains_user_signal(
+        self,
+        history: Optional[List[Dict[str, str]]],
+        predicate,
+        *,
+        expected: str,
+    ) -> bool:
+        if not history:
+            return False
+
+        for index, item in enumerate(history):
+            if not isinstance(item, dict) or item.get("role") != "user":
+                continue
+            content = item.get("content")
+            if not isinstance(content, str) or not content.strip():
+                continue
+            if predicate(content):
+                return True
+
+            previous = history[index - 1] if index > 0 else None
+            if (
+                isinstance(previous, dict)
+                and previous.get("role") == "assistant"
+                and self._is_reply_to_assistant_prompt(
+                    content,
+                    previous.get("content", ""),
+                    expected=expected,
+                )
+            ):
+                return True
+        return False
 
     def _looks_like_capacity_question(self, text: str) -> bool:
         lowered = text.lower()
@@ -831,9 +937,11 @@ class HarveyAgent:
             "cuantos",
             "cuanta",
             "cuantas",
+            "cuando",
             "how many",
             "how much",
             "how long",
+            "when",
             "puedo mandar",
             "puedo enviar",
             "can i send",
@@ -846,6 +954,19 @@ class HarveyAgent:
             "capacidad",
             "throughput",
             "tardo",
+            "cuota",
+            "quota",
+            "limite",
+            "límite",
+            "limit",
+            "gasto",
+            "agoto",
+            "exhaust",
+            "alcanzar",
+            "llegar",
+            "procesar",
+            "tiempo",
+            "time",
         )
         return any(pattern in lowered for pattern in patterns)
 
@@ -900,7 +1021,15 @@ class HarveyAgent:
         )
         has_per_call = any(pattern in lowered for pattern in call_patterns)
         has_number = bool(re.search(r"\b\d+(?:[.,]\d+)?\b", lowered))
-        return has_per_call and has_number
+        if has_per_call and has_number:
+            return True
+
+        crf_patterns = (
+            "crf",
+            "capacity request factor",
+            "batch size",
+        )
+        return any(pattern in lowered for pattern in crf_patterns) and has_number
 
     def _looks_like_reply_to_assistant_prompt(
         self,
@@ -927,7 +1056,23 @@ class HarveyAgent:
         if question_word_count == 0:
             return False
 
-        latest_lowered = latest_assistant.lower()
+        return self._is_reply_to_assistant_prompt(question, latest_assistant, expected=expected)
+
+    def _is_reply_to_assistant_prompt(
+        self,
+        question: str,
+        assistant_message: str,
+        *,
+        expected: str,
+    ) -> bool:
+        if not isinstance(assistant_message, str) or not assistant_message.strip():
+            return False
+
+        question_word_count = len(question.strip().split())
+        if question_word_count == 0:
+            return False
+
+        latest_lowered = assistant_message.lower()
         question_lowered = question.lower()
 
         if expected == "plan":
@@ -1114,15 +1259,35 @@ class HarveyAgent:
                     **common_kwargs,
                 )
             if action.name == "datasheet_quota_exhaustion_threshold":
-                return await self._workflow.run_datasheet_quota_exhaustion_threshold(**common_kwargs)
+                return await self._workflow.run_datasheet_quota_exhaustion_threshold(
+                    capacity_unit=params.get("capacity_unit"),
+                    capacity_request_factor=params.get("capacity_request_factor"),
+                    **common_kwargs,
+                )
             if action.name == "datasheet_rates":
-                return await self._workflow.run_datasheet_rates(**common_kwargs)
+                return await self._workflow.run_datasheet_rates(
+                    capacity_unit=params.get("capacity_unit"),
+                    capacity_request_factor=params.get("capacity_request_factor"),
+                    **common_kwargs,
+                )
             if action.name == "datasheet_quotas":
-                return await self._workflow.run_datasheet_quotas(**common_kwargs)
+                return await self._workflow.run_datasheet_quotas(
+                    capacity_unit=params.get("capacity_unit"),
+                    capacity_request_factor=params.get("capacity_request_factor"),
+                    **common_kwargs,
+                )
             if action.name == "datasheet_limits":
-                return await self._workflow.run_datasheet_limits(**common_kwargs)
+                return await self._workflow.run_datasheet_limits(
+                    capacity_unit=params.get("capacity_unit"),
+                    capacity_request_factor=params.get("capacity_request_factor"),
+                    **common_kwargs,
+                )
             if action.name == "datasheet_idle_time_period":
-                return await self._workflow.run_datasheet_idle_time_period(**common_kwargs)
+                return await self._workflow.run_datasheet_idle_time_period(
+                    capacity_unit=params.get("capacity_unit"),
+                    capacity_request_factor=params.get("capacity_request_factor"),
+                    **common_kwargs,
+                )
             if action.name == "datasheet_capacity_curve_inflection":
                 return await self._workflow.run_datasheet_capacity_curve_inflection(
                     time_interval=params.get("time_interval", "1day"),
@@ -1286,13 +1451,11 @@ class HarveyAgent:
 
     def _append_history_messages(
         self,
-        messages: List[str],
+        messages: List[ChatMessage],
         history: Optional[List[Dict[str, str]]],
     ) -> None:
         if not history:
             return
-
-        sanitized_turns: List[str] = []
         for item in history[-MAX_HISTORY_TURNS:]:
             if not isinstance(item, dict):
                 continue
@@ -1303,13 +1466,7 @@ class HarveyAgent:
             stripped = content.strip()
             if not stripped:
                 continue
-            sanitized_turns.append(f"{role}: {stripped}")
-
-        if not sanitized_turns:
-            return
-
-        messages.append("Conversation history (previous turns only):")
-        messages.extend(sanitized_turns)
+            messages.append({"role": role, "content": stripped})
 
     # ------------------------------------------------------------------
     # Datasheet alias map

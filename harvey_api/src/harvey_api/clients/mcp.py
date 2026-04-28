@@ -7,7 +7,7 @@ import os
 import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mcp.client.session import ClientSession  # type: ignore[import]
 from mcp.client.stdio import StdioServerParameters, stdio_client  # type: ignore[import]
@@ -335,7 +335,7 @@ class MCPWorkflowClient:
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
         capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[float] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {
             "datasheet_source": datasheet_source,
@@ -362,7 +362,7 @@ class MCPWorkflowClient:
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
         capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[float] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {
             "datasheet_source": datasheet_source,
@@ -390,7 +390,7 @@ class MCPWorkflowClient:
         alias: Optional[str] = None,
         start_instant: str = "0ms",
         capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[float] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {
             "datasheet_source": datasheet_source,
@@ -416,6 +416,8 @@ class MCPWorkflowClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
@@ -424,6 +426,10 @@ class MCPWorkflowClient:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_quota_exhaustion_threshold", arguments)
 
     async def run_datasheet_idle_time_period(
@@ -433,6 +439,8 @@ class MCPWorkflowClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
@@ -441,6 +449,10 @@ class MCPWorkflowClient:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_idle_time_period", arguments)
 
     async def run_datasheet_rates(
@@ -450,6 +462,8 @@ class MCPWorkflowClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
@@ -458,6 +472,10 @@ class MCPWorkflowClient:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_rates", arguments)
 
     async def run_datasheet_quotas(
@@ -467,6 +485,8 @@ class MCPWorkflowClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
@@ -475,6 +495,10 @@ class MCPWorkflowClient:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_quotas", arguments)
 
     async def run_datasheet_limits(
@@ -484,6 +508,8 @@ class MCPWorkflowClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
         if plan_name is not None:
@@ -492,6 +518,10 @@ class MCPWorkflowClient:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_limits", arguments)
 
     async def run_datasheet_capacity_curve_inflection(
@@ -503,7 +533,7 @@ class MCPWorkflowClient:
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
         capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[float] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         arguments: Dict[str, Any] = {
             "datasheet_source": datasheet_source,

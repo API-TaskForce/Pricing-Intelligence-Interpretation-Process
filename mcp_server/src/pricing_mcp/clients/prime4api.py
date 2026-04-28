@@ -341,6 +341,8 @@ class Prime4APIClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         url = f"{self._base_url}/api/v1/datasheet/quota-exhaustion-threshold"
         body = self._build_datasheet_body(
@@ -349,7 +351,12 @@ class Prime4APIClient:
             endpoint_path=endpoint_path,
             alias=alias,
         )
-        return await self._post(url, body, log_name="datasheet_quota_exhaustion_threshold")
+        params: Dict[str, Any] = {}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(url, body, params=params or None, log_name="datasheet_quota_exhaustion_threshold")
 
     async def datasheet_idle_time_period(
         self,
@@ -357,6 +364,8 @@ class Prime4APIClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         url = f"{self._base_url}/api/v1/datasheet/idle-time-period"
         body = self._build_datasheet_body(
@@ -365,7 +374,12 @@ class Prime4APIClient:
             endpoint_path=endpoint_path,
             alias=alias,
         )
-        return await self._post(url, body, log_name="datasheet_idle_time_period")
+        params: Dict[str, Any] = {}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(url, body, params=params or None, log_name="datasheet_idle_time_period")
 
     async def datasheet_rates(
         self,
@@ -373,6 +387,8 @@ class Prime4APIClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         url = f"{self._base_url}/api/v1/datasheet/rates"
         body = self._build_datasheet_body(
@@ -381,7 +397,12 @@ class Prime4APIClient:
             endpoint_path=endpoint_path,
             alias=alias,
         )
-        return await self._post(url, body, log_name="datasheet_rates")
+        params: Dict[str, Any] = {}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(url, body, params=params or None, log_name="datasheet_rates")
 
     async def datasheet_quotas(
         self,
@@ -389,6 +410,8 @@ class Prime4APIClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         url = f"{self._base_url}/api/v1/datasheet/quotas"
         body = self._build_datasheet_body(
@@ -397,7 +420,12 @@ class Prime4APIClient:
             endpoint_path=endpoint_path,
             alias=alias,
         )
-        return await self._post(url, body, log_name="datasheet_quotas")
+        params: Dict[str, Any] = {}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(url, body, params=params or None, log_name="datasheet_quotas")
 
     async def datasheet_limits(
         self,
@@ -405,6 +433,8 @@ class Prime4APIClient:
         plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Union[float, str]] = None,
     ) -> Dict[str, Any]:
         url = f"{self._base_url}/api/v1/datasheet/limits"
         body = self._build_datasheet_body(
@@ -413,7 +443,12 @@ class Prime4APIClient:
             endpoint_path=endpoint_path,
             alias=alias,
         )
-        return await self._post(url, body, log_name="datasheet_limits")
+        params: Dict[str, Any] = {}
+        if capacity_unit is not None:
+            params["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            params["capacity_request_factor"] = capacity_request_factor
+        return await self._post(url, body, params=params or None, log_name="datasheet_limits")
 
     async def datasheet_capacity_curve_inflection(
         self,

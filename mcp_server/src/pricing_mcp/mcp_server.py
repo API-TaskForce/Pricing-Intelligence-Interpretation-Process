@@ -506,6 +506,8 @@ async def datasheet_quota_exhaustion_threshold(
     plan_name: Optional[str] = None,
     endpoint_path: Optional[str] = None,
     alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     logger.info(
         TOOL_INVOKED,
@@ -513,12 +515,16 @@ async def datasheet_quota_exhaustion_threshold(
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     result = await container.prime4api_client.datasheet_quota_exhaustion_threshold(
         datasheet_source=datasheet_source,
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_quota_exhaustion_threshold")
     return result
@@ -530,6 +536,8 @@ async def datasheet_idle_time_period(
     plan_name: Optional[str] = None,
     endpoint_path: Optional[str] = None,
     alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     logger.info(
         TOOL_INVOKED,
@@ -537,12 +545,16 @@ async def datasheet_idle_time_period(
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     result = await container.prime4api_client.datasheet_idle_time_period(
         datasheet_source=datasheet_source,
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_idle_time_period")
     return result
@@ -554,6 +566,8 @@ async def datasheet_rates(
     plan_name: Optional[str] = None,
     endpoint_path: Optional[str] = None,
     alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     logger.info(
         TOOL_INVOKED,
@@ -561,12 +575,16 @@ async def datasheet_rates(
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     result = await container.prime4api_client.datasheet_rates(
         datasheet_source=datasheet_source,
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_rates")
     return result
@@ -578,6 +596,8 @@ async def datasheet_quotas(
     plan_name: Optional[str] = None,
     endpoint_path: Optional[str] = None,
     alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     logger.info(
         TOOL_INVOKED,
@@ -585,12 +605,16 @@ async def datasheet_quotas(
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     result = await container.prime4api_client.datasheet_quotas(
         datasheet_source=datasheet_source,
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_quotas")
     return result
@@ -602,6 +626,8 @@ async def datasheet_limits(
     plan_name: Optional[str] = None,
     endpoint_path: Optional[str] = None,
     alias: Optional[str] = None,
+    capacity_unit: Optional[str] = None,
+    capacity_request_factor: Optional[Any] = None,
 ) -> Dict[str, Any]:
     logger.info(
         TOOL_INVOKED,
@@ -609,12 +635,16 @@ async def datasheet_limits(
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     result = await container.prime4api_client.datasheet_limits(
         datasheet_source=datasheet_source,
         plan_name=plan_name,
         endpoint_path=endpoint_path,
         alias=alias,
+        capacity_unit=capacity_unit,
+        capacity_request_factor=capacity_request_factor,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_limits")
     return result
