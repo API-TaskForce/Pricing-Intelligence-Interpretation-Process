@@ -49,6 +49,7 @@ export interface PromptPreset {
   question: string;
   context: ContextInputType[];
   demoResponse?: string;
+  demoChartUrl?: string;
 }
 
 export type ChatRequest = {

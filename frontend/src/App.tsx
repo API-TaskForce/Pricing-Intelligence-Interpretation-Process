@@ -18,7 +18,7 @@ import type {
   ChatRequest,
 } from "./types";
 import { useAppMode } from "./context/appModeContext";
-import { SENDGRID_PRESETS } from "./prompts";
+import { SENDGRID_PRESETS, SENDGRID_DEMO_PRESETS } from "./prompts";
 import { ThemeContext, ThemeType } from "./context/themeContext";
 import {
   chatWithAgent,
@@ -47,6 +47,11 @@ const MODE_DATASHEET: Record<HarveyMode, { label: string; url: string }> = {
 const MODE_PRESETS: Partial<Record<HarveyMode, PromptPreset[]>> = {
   "sendgrid-2025": SENDGRID_PRESETS,
   "sendgrid-2026": SENDGRID_PRESETS,
+};
+
+const MODE_DEMO_PRESETS: Partial<Record<HarveyMode, PromptPreset[]>> = {
+  "sendgrid-2025": SENDGRID_DEMO_PRESETS,
+  "sendgrid-2026": SENDGRID_DEMO_PRESETS,
 };
 
 const DEFAULT_MODE: HarveyMode = "sendgrid-2025";
@@ -334,7 +339,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
     setContextItems((prev) => prev.filter((item) => item.kind === "yaml-url"));
   };
 
-  const handleDemoPresetClick = (preset: PromptPreset) => {
+  const handleDemoPresetClick = async (preset: PromptPreset) => {
     setActivePresetId(preset.id);
     const userMessage: ChatMessage = {
       id: crypto.randomUUID(),
@@ -342,11 +347,21 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
       content: preset.question,
       createdAt: new Date().toISOString(),
     };
+    let chartHtml: string | undefined;
+    if (preset.demoChartUrl) {
+      try {
+        const res = await fetch(preset.demoChartUrl);
+        chartHtml = await res.text();
+      } catch {
+        // show without chart if fetch fails
+      }
+    }
     const assistantMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "assistant",
       content: preset.demoResponse ?? DEMO_FALLBACK_RESPONSE,
       createdAt: new Date().toISOString(),
+      chartHtml,
     };
     setMessages([userMessage, assistantMessage]);
   };
@@ -519,7 +534,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
-                promptPresets={MODE_PRESETS[activeMode as HarveyMode] ?? []}
+                promptPresets={(isDemo ? MODE_DEMO_PRESETS : MODE_PRESETS)[activeMode as HarveyMode] ?? []}
                 onPresetSelect={isDemo ? handleDemoPresetClick : handlePromptSelect}
                 isDemo={isDemo}
               />
@@ -528,7 +543,7 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
               <section className="control-panel">
                 {isDemo ? (
                   <DemoPresetPanel
-                    presets={MODE_PRESETS[activeMode as HarveyMode] ?? []}
+                    presets={MODE_DEMO_PRESETS[activeMode as HarveyMode] ?? []}
                     activePresetId={activePresetId}
                     onSelect={handleDemoPresetClick}
                   />

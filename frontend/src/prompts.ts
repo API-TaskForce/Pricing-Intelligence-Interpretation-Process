@@ -43,6 +43,19 @@ export const SENDGRID_PRESETS: PromptPreset[] = [
   },
 ];
 
+export const SENDGRID_DEMO_PRESETS: PromptPreset[] = [
+  ...SENDGRID_PRESETS,
+  {
+    id: 'sg-capacity-curve',
+    label: '📈 Curva de capacidad',
+    description: 'Visualiza la curva de capacidad de todos los planes con CRF entre 1 y 1.000 correos por llamada.',
+    question: 'Genera la curva de capacidad de todos los planes con los CRF de la datasheet (1–1.000 correos por llamada).',
+    context: [],
+    demoResponse: `A continuación puedes ver la curva de capacidad interactiva para todos los planes de Sendgrid.\n\nEl gráfico muestra cómo varía la capacidad acumulada (correos enviables) a lo largo del tiempo según el tamaño de lote por llamada (CRF). Cada línea representa un escenario: el **peor caso** (CRF=1, un correo por llamada), el **caso típico** y el **mejor caso** (CRF=1.000, mil correos por llamada).\n\nLos puntos de inflexión marcan el momento en que una restricción — rate limit o cuota — pasa a ser el cuello de botella dominante.`,
+    demoChartUrl: '/demo-capacity-curve.html',
+  },
+];
+
 export const PROMPT_PRESETS: PromptPreset[] = [
   {
     id: 'capacity-at',
