@@ -65,7 +65,20 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
           <div className="message-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
-          {message.chartHtml ? (
+          {message.chartHtmlEntries && message.chartHtmlEntries.length > 0 ? (
+            <div className="chart-open-btn-group">
+              {message.chartHtmlEntries.map((entry, i) => (
+                <button
+                  key={i}
+                  type="button"
+                  className="chart-open-btn"
+                  onClick={() => setActiveChart(entry.html)}
+                >
+                  📊 {entry.label}
+                </button>
+              ))}
+            </div>
+          ) : message.chartHtml ? (
             <button
               type="button"
               className="chart-open-btn"

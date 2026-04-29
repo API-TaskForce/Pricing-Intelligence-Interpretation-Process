@@ -12,12 +12,18 @@ export type HarveyMode =
   | "peertube"
   | "dailymotion";
 
+export interface ChartHtmlEntry {
+  html: string;
+  label: string;
+}
+
 export interface ChatMessage {
   id: string;
   role: ChatRole;
   content: string;
   createdAt: string;
   chartHtml?: string;
+  chartHtmlEntries?: ChartHtmlEntry[];
   metadata?: {
     plan?: Record<string, unknown>;
     result?: Record<string, unknown>;
@@ -42,6 +48,11 @@ export type ContextInputType = {
   origin?: Origins;
 };
 
+export interface DemoChartEntry {
+  url: string;
+  label: string;
+}
+
 export interface PromptPreset {
   id: string;
   label: string;
@@ -50,6 +61,7 @@ export interface PromptPreset {
   context: ContextInputType[];
   demoResponse?: string;
   demoChartUrl?: string;
+  demoChartUrls?: DemoChartEntry[];
 }
 
 export type ChatRequest = {

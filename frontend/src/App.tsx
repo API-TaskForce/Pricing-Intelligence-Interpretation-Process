@@ -10,6 +10,7 @@ import ModeNav, { MODES } from "./components/ModeNav";
 import ModeSettingsButton from "./components/ModeSettingsButton";
 import type {
   ChatMessage,
+  ChartHtmlEntry,
   ClarificationRequest,
   DatasheetContextItem,
   HarveyMode,
@@ -347,8 +348,23 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
       content: preset.question,
       createdAt: new Date().toISOString(),
     };
+
     let chartHtml: string | undefined;
-    if (preset.demoChartUrl) {
+    let chartHtmlEntries: ChartHtmlEntry[] | undefined;
+
+    if (preset.demoChartUrls && preset.demoChartUrls.length > 0) {
+      const results = await Promise.allSettled(
+        preset.demoChartUrls.map(async ({ url, label }) => {
+          const res = await fetch(url);
+          const html = await res.text();
+          return { html, label };
+        })
+      );
+      const fulfilled = results
+        .filter((r): r is PromiseFulfilledResult<ChartHtmlEntry> => r.status === "fulfilled")
+        .map((r) => r.value);
+      if (fulfilled.length > 0) chartHtmlEntries = fulfilled;
+    } else if (preset.demoChartUrl) {
       try {
         const res = await fetch(preset.demoChartUrl);
         chartHtml = await res.text();
@@ -356,12 +372,14 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
         // show without chart if fetch fails
       }
     }
+
     const assistantMessage: ChatMessage = {
       id: crypto.randomUUID(),
       role: "assistant",
       content: preset.demoResponse ?? DEMO_FALLBACK_RESPONSE,
       createdAt: new Date().toISOString(),
       chartHtml,
+      chartHtmlEntries,
     };
     setMessages([userMessage, assistantMessage]);
   };
