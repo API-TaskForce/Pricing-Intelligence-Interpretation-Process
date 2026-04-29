@@ -15,7 +15,7 @@ export const SENDGRID_PRESETS: PromptPreset[] = [
     description: '¿Cuánto tiempo necesito para enviar 1.300 correos en el plan Pro?',
     question: '¿Cuánto tiempo necesito para enviar 1.300 correos en el plan Pro?',
     context: [],
-    demoResponse: `**Plan Pro**\n\n- 2 min 9 s\n\nNotas relevantes:\n\n- Con 1.300 correos la cuota mensual del plan Pro (40.000 emails/mes) no es el factor limitante. El cuello de botella es el rate limit de 10 req/s.`,
+    demoResponse: `**Plan Pro**\n\n- 2 min 9 s\n\nNotas relevantes:\n\n- Con 1.300 correos la cuota mensual del plan Pro (40.000 emails/mes) no es el factor limitante. El cuello de botella es el rate limit de 10 req/s.\n\n**Bloque de simulaciones**\n\n- [Simulación 24 horas](/sendgrid-1300-24h.html)\n- [Simulación 2h](/reduced-sendgrid-1300.html)`,
   },
   {
     id: 'sg-best-plan-1200',
