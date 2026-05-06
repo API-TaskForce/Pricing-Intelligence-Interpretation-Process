@@ -2524,3 +2524,531 @@ button.context-add-url {
   transform: translateY(-50%);
   color: var(--accent-color);
 }
+
+/* ── Demo Landing ──────────────────────────────────────────────────────────── */
+.demo-landing {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3rem;
+  padding: 3rem 1.5rem;
+}
+
+.demo-landing-header {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.75rem;
+  text-align: center;
+  max-width: 560px;
+  animation: slideDown 0.5s ease-out;
+}
+
+.demo-landing-icon {
+  font-size: 3.5rem;
+  line-height: 1;
+  animation: float 3s ease-in-out infinite;
+}
+
+.demo-landing-title {
+  margin: 0;
+  font-size: 2.25rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  letter-spacing: -0.02em;
+}
+
+.demo-landing-subtitle {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+}
+
+.demo-landing-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  width: 100%;
+  max-width: 820px;
+  animation: fadeIn 0.6s ease-out 0.2s both;
+}
+
+.demo-landing-card {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 2rem 1.75rem;
+  background: var(--card-bg);
+  border: 1.5px solid var(--card-border);
+  border-radius: 1.25rem;
+  box-shadow: var(--card-shadow);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(20px);
+  position: relative;
+  overflow: hidden;
+}
+
+.demo-landing-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--accent-gradient);
+  opacity: 0;
+  transition: opacity 0.3s ease;
+}
+
+.demo-landing-card:hover {
+  transform: translateY(-6px);
+  border-color: var(--accent-color);
+  box-shadow: 0 20px 50px rgba(102, 126, 234, 0.25);
+}
+
+.demo-landing-card:hover::before {
+  opacity: 0.06;
+}
+
+.demo-landing-card-icon {
+  font-size: 2.5rem;
+  line-height: 1;
+  position: relative;
+  z-index: 1;
+}
+
+.demo-landing-card-title {
+  margin: 0;
+  font-size: 1.3rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  position: relative;
+  z-index: 1;
+}
+
+.demo-landing-card-desc {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  line-height: 1.6;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.demo-landing-card-cta {
+  margin-top: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent-color);
+  position: relative;
+  z-index: 1;
+  transition: transform 0.2s ease;
+}
+
+.demo-landing-card:hover .demo-landing-card-cta {
+  transform: translateX(4px);
+}
+
+@media (max-width: 640px) {
+  .demo-landing-cards {
+    grid-template-columns: 1fr;
+  }
+
+  .demo-landing-title {
+    font-size: 1.75rem;
+  }
+}
+
+/* ── PRIME4API Playground ──────────────────────────────────────────────────── */
+.p4-app {
+  overflow-y: auto !important;
+  height: auto !important;
+  max-height: none !important;
+  min-height: 100vh;
+}
+
+.p4-main {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+  padding-bottom: 2rem;
+  animation: fadeIn 0.5s ease-out 0.2s both;
+}
+
+/* Config section */
+.p4-config-section {
+  background: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 1.25rem;
+  padding: 1.25rem 1.5rem;
+  box-shadow: var(--card-shadow);
+  backdrop-filter: blur(20px);
+}
+
+.p4-config-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+}
+
+.p4-config-title {
+  margin: 0;
+  font-size: 0.78rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.p4-config-toggle {
+  border: 1px solid var(--card-border);
+  background: transparent;
+  color: var(--accent-color);
+  font-size: 0.82rem;
+  font-weight: 700;
+  padding: 0.3rem 0.85rem;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.p4-config-toggle:hover {
+  background: rgba(102, 126, 234, 0.08);
+  border-color: var(--accent-color);
+}
+
+.p4-config-fields {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.p4-config-field {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex: 1;
+  min-width: 260px;
+}
+
+.p4-config-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.p4-config-value {
+  font-size: 0.85rem;
+  color: var(--text-primary);
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p4-config-input {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0.65rem;
+  border: 1.5px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 0.85rem;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  transition: border-color 0.2s ease;
+}
+
+.p4-config-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+}
+
+:root[data-theme='dark'] .p4-config-input {
+  color: #f8fafc;
+}
+
+.p4-sphere-link {
+  font-size: 0.85rem;
+  color: var(--accent-color);
+  text-decoration: none;
+  padding: 0.2rem 0.5rem;
+  border-radius: 0.4rem;
+  border: 1px solid var(--card-border);
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.p4-sphere-link:hover {
+  background: rgba(102, 126, 234, 0.1);
+  border-color: var(--accent-color);
+}
+
+/* Questions section */
+.p4-questions-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.p4-questions-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.p4-section-title {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  flex-shrink: 0;
+}
+
+.p4-section-heading {
+  margin: 1.5rem 0 0.5rem;
+  padding-bottom: 0.35rem;
+  font-size: 0.8rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.p4-datasheet-url {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.p4-questions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+/* Question card */
+.p4-question-card {
+  background: var(--card-bg);
+  border: 1.5px solid var(--card-border);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.06);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
+}
+
+.p4-question-card--expanded {
+  border-color: var(--accent-color);
+  box-shadow: 0 4px 20px rgba(102, 126, 234, 0.15);
+}
+
+.p4-question-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.1rem 1.25rem;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  color: var(--text-primary);
+  transition: background 0.2s ease;
+}
+
+.p4-question-header:hover {
+  background: rgba(102, 126, 234, 0.04);
+}
+
+.p4-question-icon {
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.p4-question-meta {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.p4-question-label {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.p4-question-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.p4-question-chevron {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+
+/* Question body (expanded) */
+.p4-question-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 0 1.25rem 1.25rem;
+  border-top: 1px solid var(--card-border);
+  padding-top: 1rem;
+  animation: fadeIn 0.2s ease-out;
+}
+
+.p4-params {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+}
+
+.p4-param-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+  min-width: 200px;
+}
+
+.p4-param-label {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.p4-param-hint {
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: var(--text-muted);
+  opacity: 0.75;
+}
+
+.p4-param-input {
+  padding: 0.6rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1.5px solid var(--card-border);
+  background: var(--input-bg);
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  width: 100%;
+}
+
+.p4-param-input:focus {
+  outline: none;
+  border-color: var(--accent-color);
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+:root[data-theme='dark'] .p4-param-input {
+  color: #f8fafc;
+}
+
+.p4-run-row {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.p4-run-btn {
+  padding: 0.65rem 1.5rem;
+  border: none;
+  border-radius: 999px;
+  background: var(--accent-gradient);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.92rem;
+  cursor: pointer;
+  transition: all 0.25s ease;
+  box-shadow: 0 4px 14px rgba(102, 126, 234, 0.3);
+}
+
+.p4-run-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+.p4-run-btn:not(:disabled):hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 22px rgba(102, 126, 234, 0.4);
+}
+
+.p4-loading-hint {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Response */
+.p4-response {
+  background: var(--pre-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 0.75rem;
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.p4-response--error {
+  border-color: var(--danger-color);
+  background: rgba(239, 68, 68, 0.05);
+}
+
+.p4-response-title {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  color: var(--text-muted);
+}
+
+.p4-response--error .p4-response-title {
+  color: var(--danger-color);
+}
+
+.p4-response-json {
+  margin: 0;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-size: 0.82rem;
+  line-height: 1.6;
+  color: var(--text-primary);
+  overflow-x: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.p4-charts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  padding-top: 0.25rem;
+}

@@ -4,6 +4,8 @@ import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
 import ClarificationPanel from "./components/ClarificationPanel";
 import DemoPresetPanel from "./components/DemoPresetPanel";
+import DemoLanding from "./components/DemoLanding";
+import Prime4ApiPlayground from "./components/Prime4ApiPlayground";
 import LoginPage from "./components/LoginPage";
 import ApiKeySetup from "./components/ApiKeySetup";
 import ModeNav, { MODES } from "./components/ModeNav";
@@ -70,6 +72,7 @@ const initTheme = (): ThemeType => {
 interface AppContentProps {
   isDemo: boolean;
   onLoginClick: () => void;
+  onBack?: () => void;
 }
 
 function extractClarificationFromResult(
@@ -144,7 +147,7 @@ function buildClarificationAnswer(answers: Record<string, string>): string {
   return parts.join(", ");
 }
 
-function AppContent({ isDemo, onLoginClick }: AppContentProps) {
+function AppContent({ isDemo, onLoginClick, onBack }: AppContentProps) {
   const { auth, logout } = useAuth();
   const { queryMode } = useAppMode();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
@@ -482,6 +485,11 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
             <div className="header-actions">
               {isDemo ? (
                 <>
+                  {onBack && (
+                    <button type="button" className="session-reset" onClick={onBack}>
+                      ← Back
+                    </button>
+                  )}
                   <span className="demo-badge">DEMO</span>
                   <button
                     type="button"
@@ -595,19 +603,40 @@ function AppContent({ isDemo, onLoginClick }: AppContentProps) {
   );
 }
 
+type DemoView = "select" | "harvey" | "prime4api";
+
 function App() {
   const { auth } = useAuth();
   const [showLogin, setShowLogin] = useState(false);
+  const [demoView, setDemoView] = useState<DemoView>("select");
 
-  // Hide login page automatically after successful login
   useEffect(() => {
     if (auth) setShowLogin(false);
   }, [auth]);
 
   if (showLogin && !auth) return <LoginPage onBack={() => setShowLogin(false)} />;
   if (auth?.role === "student" && !auth.apiKey) return <ApiKeySetup />;
+  if (auth) return <AppContent isDemo={false} onLoginClick={() => setShowLogin(true)} />;
 
-  return <AppContent isDemo={!auth} onLoginClick={() => setShowLogin(true)} />;
+  if (demoView === "prime4api")
+    return <Prime4ApiPlayground onBack={() => setDemoView("select")} />;
+
+  if (demoView === "harvey")
+    return (
+      <AppContent
+        isDemo
+        onLoginClick={() => setShowLogin(true)}
+        onBack={() => setDemoView("select")}
+      />
+    );
+
+  return (
+    <DemoLanding
+      onSelectHarvey={() => setDemoView("harvey")}
+      onSelectPrime4Api={() => setDemoView("prime4api")}
+      onLoginClick={() => setShowLogin(true)}
+    />
+  );
 }
 
 export default App;
