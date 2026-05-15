@@ -11,6 +11,7 @@ jobs:
     outputs:
       harvey: ${{ steps.filter.outputs.harvey }}
       mcp: ${{ steps.filter.outputs.mcp }}
+      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -24,6 +25,8 @@ jobs:
               - 'harvey_api/**'
             mcp:
               - 'mcp_server/**'
+            frontend:
+              - 'frontend/**'
 
   build-harvey:
     needs: detect-changes
@@ -68,3 +71,28 @@ jobs:
           file: ./mcp_server/Dockerfile
           push: true
           tags: daniruiz13524/pi-mcp-server:latest
+
+  build-frontend:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.frontend == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Login to DockerHub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and push mcp-frontend
+        uses: docker/build-push-action@v5
+        with:
+          context: ./frontend
+          file: ./frontend/Dockerfile
+          push: true
+          tags: daniruiz13524/pi-mcp-frontend:latest
+          build-args: |
+            VITE_API_BASE_URL=https://harvey.apitaskforce.app
+            VITE_SPHERE_BASE_URL=https://sphere.apitaskforce.app

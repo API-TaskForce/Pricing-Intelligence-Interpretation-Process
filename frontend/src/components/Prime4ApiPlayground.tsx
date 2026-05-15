@@ -228,7 +228,7 @@ Resultados ordenados por coste total:
 → Sorpresa: aunque Ultra tiene cuota de 100.000 emails, el Plan Pro sale más barato
   ($69.95 vs $79.95) y llega exactamente a la misma velocidad (2 h 46 min 40 s).
   Solo conviene Ultra si se prefiere evitar el overage; la diferencia es solo $10/mes.
-  El Mega es casi ×3 más caro pero finaliza el envío en 33 min 20 s.
+  El Mega es casi 3 veces más caro pero finaliza el envío en 33 min 20 s.
 
 ${DISCLAIMER}`,
   },
