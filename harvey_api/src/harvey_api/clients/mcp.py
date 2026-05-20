@@ -7,7 +7,7 @@ import os
 import sys
 from contextlib import AsyncExitStack
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, Union
 
 from mcp.client.session import ClientSession  # type: ignore[import]
 from mcp.client.stdio import StdioServerParameters, stdio_client  # type: ignore[import]
@@ -15,11 +15,7 @@ from mcp.client.sse import sse_client  # type: ignore[import]
 
 from ..config import get_settings
 from ..logging import get_logger
-from ..pricing_context import pricing_context_db
-from ..stream import stream
 from ..file_manager import FileManager
-
-from sse_starlette import JSONServerSentEvent
 
 
 logger = get_logger(__name__)
@@ -105,92 +101,6 @@ class MCPWorkflowClient:
             self._exit_stack = None
             self._session = None
             logger.info("harvey.mcp.launch.stopped", module=self._module)
-
-    async def run_summary(
-        self,
-        *,
-        url: Optional[str],
-        yaml_content: Optional[str],
-        refresh: bool,
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "pricing_url": url,
-            "pricing_yaml": yaml_content,
-            "refresh": refresh,
-        }
-        return await self._call_tool("summary", arguments)
-
-    async def run_ipricing(
-        self,
-        *,
-        url: Optional[str],
-        yaml_content: Optional[str],
-        refresh: bool,
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "pricing_url": url,
-            "pricing_yaml": yaml_content,
-            "refresh": refresh,
-        }
-        result =  await self._call_tool("iPricing", arguments)
-        yaml_content = result.get("pricing_yaml", "")
-        self._upload_transformed_pricing(url, yaml_content)
-        await self._notify_pricing_upload(url, yaml_content)
-        return result
-
-    async def run_subscriptions(
-        self,
-        *,
-        url: str,
-        filters: Optional[Dict[str, Any]],
-        solver: str,
-        refresh: bool,
-        yaml_content: Optional[str],
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "pricing_url": url or None,
-            "pricing_yaml": yaml_content,
-            "filters": filters,
-            "solver": solver,
-            "refresh": refresh,
-        }
-        return await self._call_tool("subscriptions", arguments)
-
-    async def run_validate(
-        self,
-        *,
-        url: Optional[str],
-        yaml_content: Optional[str],
-        solver: str,
-        refresh: bool,
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "pricing_url": url,
-            "pricing_yaml": yaml_content,
-            "solver": solver,
-            "refresh": refresh,
-        }
-        return await self._call_tool("validate", arguments)
-
-    async def run_optimal(
-        self,
-        *,
-        url: str,
-        filters: Optional[Dict[str, Any]],
-        solver: str,
-        objective: str,
-        refresh: bool,
-        yaml_content: Optional[str],
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "pricing_url": url or None,
-            "pricing_yaml": yaml_content,
-            "filters": filters,
-            "solver": solver,
-            "objective": objective,
-            "refresh": refresh,
-        }
-        return await self._call_tool("optimal", arguments)
 
     async def run_min_time(
         self,
@@ -303,28 +213,414 @@ class MCPWorkflowClient:
             arguments["quota"] = quota
         return await self._call_tool("idle_time_period", arguments)
 
-    async def run_evaluate_api_datasheet(
+    async def run_capacity_curve_inflection(
+        self,
+        *,
+        time_interval: str,
+        rate: Optional[Any] = None,
+        quota: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"time_interval": time_interval}
+        if rate is not None:
+            arguments["rate"] = rate
+        if quota is not None:
+            arguments["quota"] = quota
+        return await self._call_tool("capacity_curve_inflection", arguments)
+
+    async def run_datasheet_min_time(
         self,
         *,
         datasheet_source: str,
-        plan_name: str,
-        operation: str,
-        operation_params: Optional[Dict[str, Any]] = None,
+        capacity_goal: int,
+        plan_name: Optional[str] = None,
         endpoint_path: Optional[str] = None,
         alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
     ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "datasheet_source": datasheet_source,
-            "plan_name": plan_name,
-            "operation": operation,
-        }
-        if operation_params is not None:
-            arguments["operation_params"] = operation_params
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source, "capacity_goal": capacity_goal}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
         if endpoint_path is not None:
             arguments["endpoint_path"] = endpoint_path
         if alias is not None:
             arguments["alias"] = alias
-        return await self._call_tool("evaluate_api_datasheet", arguments)
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_min_time", arguments)
+
+    async def run_datasheet_capacity_at(
+        self,
+        *,
+        datasheet_source: str,
+        time: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source, "time": time}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_at", arguments)
+
+    async def run_datasheet_capacity_during(
+        self,
+        *,
+        datasheet_source: str,
+        end_instant: str,
+        start_instant: str = "0ms",
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "end_instant": end_instant,
+            "start_instant": start_instant,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_during", arguments)
+
+    async def run_datasheet_quota_exhaustion_threshold(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_quota_exhaustion_threshold", arguments)
+
+    async def run_datasheet_idle_time_period(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_idle_time_period", arguments)
+
+    async def run_datasheet_rates(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_rates", arguments)
+
+    async def run_datasheet_quotas(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_quotas", arguments)
+
+    async def run_datasheet_limits(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_limits", arguments)
+
+    async def run_datasheet_capacity_curve_inflection(
+        self,
+        *,
+        datasheet_source: str,
+        time_interval: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source, "time_interval": time_interval}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("datasheet_capacity_curve_inflection", arguments)
+
+    async def run_datasheet_nav_plans(self, *, datasheet_source: str) -> Dict[str, Any]:
+        return await self._call_tool("datasheet_nav_plans", {"datasheet_source": datasheet_source})
+
+    async def run_datasheet_nav_endpoints(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        return await self._call_tool("datasheet_nav_endpoints", arguments)
+
+    async def run_datasheet_nav_crf_ranges(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_crf_ranges", arguments)
+
+    async def run_datasheet_nav_capacity_units(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_capacity_units", arguments)
+
+    async def run_datasheet_nav_aliases(
+        self,
+        *,
+        datasheet_source: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {"datasheet_source": datasheet_source}
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        return await self._call_tool("datasheet_nav_aliases", arguments)
+
+    async def run_demand_evaluation(
+        self,
+        *,
+        datasheet_source: str,
+        demands: List[Any],
+        time_interval: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "demands": demands,
+            "time_interval": time_interval,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("demand_evaluation", arguments)
+
+    async def run_demand_evaluation_chart(
+        self,
+        *,
+        datasheet_source: str,
+        demands: List[Any],
+        time_interval: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        capacity_unit: Optional[str] = None,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "demands": demands,
+            "time_interval": time_interval,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if capacity_unit is not None:
+            arguments["capacity_unit"] = capacity_unit
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("demand_evaluation_chart", arguments)
+
+    async def run_budget_recommendation(
+        self,
+        *,
+        datasheet_source: str,
+        desired_capacity: float,
+        capacity_unit: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        max_budget: Optional[float] = None,
+        no_overage: bool = False,
+        capacity_request_factor: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "desired_capacity": desired_capacity,
+            "capacity_unit": capacity_unit,
+            "no_overage": no_overage,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if max_budget is not None:
+            arguments["max_budget"] = max_budget
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        return await self._call_tool("budget_recommendation", arguments)
+
+    async def run_budget_recommendation_chart(
+        self,
+        *,
+        datasheet_source: str,
+        desired_capacity: float,
+        capacity_unit: str,
+        plan_name: Optional[str] = None,
+        endpoint_path: Optional[str] = None,
+        alias: Optional[str] = None,
+        max_budget: Optional[float] = None,
+        no_overage: bool = False,
+        capacity_request_factor: Optional[Any] = None,
+        time_horizon: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        arguments: Dict[str, Any] = {
+            "datasheet_source": datasheet_source,
+            "desired_capacity": desired_capacity,
+            "capacity_unit": capacity_unit,
+            "no_overage": no_overage,
+        }
+        if plan_name is not None:
+            arguments["plan_name"] = plan_name
+        if endpoint_path is not None:
+            arguments["endpoint_path"] = endpoint_path
+        if alias is not None:
+            arguments["alias"] = alias
+        if max_budget is not None:
+            arguments["max_budget"] = max_budget
+        if capacity_request_factor is not None:
+            arguments["capacity_request_factor"] = capacity_request_factor
+        if time_horizon is not None:
+            arguments["time_horizon"] = time_horizon
+        return await self._call_tool("budget_recommendation_chart", arguments)
 
     async def get_prompt_messages(self, prompt_name: str) -> List[Dict[str, str]]:
         session = await self.ensure_connected()
@@ -346,6 +642,13 @@ class MCPWorkflowClient:
 
     async def _call_tool(self, name: str, arguments: Dict[str, Any]) -> Dict[str, Any]:
         session = await self.ensure_connected()
+        if isinstance(arguments.get("capacity_request_factor"), dict):
+            arguments = {
+                **arguments,
+                "capacity_request_factor": json.dumps(
+                    arguments["capacity_request_factor"], separators=(",", ":")
+                ),
+            }
         safe_arguments = dict(arguments)
         if safe_arguments.get("pricing_yaml"):
             safe_arguments["pricing_yaml"] = "<provided>"
@@ -355,6 +658,7 @@ class MCPWorkflowClient:
             response = await session.call_tool(name, arguments or {})
         except Exception as exc:  # pragma: no cover - protocol failure
             logger.error("harvey.mcp.tool.failed", tool=name, error=str(exc))
+            self._session = None  # force reconnect on next call
             raise MCPClientError(f"Tool '{name}' failed") from exc
 
         if getattr(response, "isError", False):
@@ -617,26 +921,3 @@ class MCPWorkflowClient:
         return "\n".join(part for part in nested if part)
 
 
-    def _upload_transformed_pricing(self, pricing_url: str, yaml_content: str):
-
-        if pricing_url not in pricing_context_db:
-            logger.error("URL \"%s\" could not be saved", pricing_url)
-            raise Exception(f"Cannot locate {pricing_url} in context")
-        harvey_id = pricing_context_db[pricing_url].id
-        filename = f"{harvey_id}.yaml"
-        self._file_manager.write_file(filename, yaml_content.encode())
-        logger.info("Saving extracted iPricing (URL: \"%s\") to %s", pricing_url, harvey_id)
-
-
-    async def _notify_pricing_upload(self, pricing_url: str, yaml_content: str):
-        logger.info("Sending SSE completion event of %s", pricing_url)
-        await stream.asend(
-            JSONServerSentEvent(
-                event="url_transform",
-                data={
-                    "id": pricing_context_db[pricing_url].id,
-                    "pricing_url": pricing_context_db[pricing_url].url,
-                    "yaml_content": yaml_content,
-                },
-            )
-    )

@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass
-from typing import Any, Dict
+from typing import Any, Dict, List
 
 from openai import (
     APIConnectionError,
@@ -17,6 +17,8 @@ from openai import OpenAI
 
 
 logger = logging.getLogger(__name__)
+
+ChatMessage = Dict[str, str]
 
 
 @dataclass
@@ -34,23 +36,28 @@ class OpenAIClient:
 
     def __init__(self, config: OpenAIClientConfig) -> None:
         self._config = config
-        self._client = OpenAI(api_key=config.api_key)
+        self._client = OpenAI(api_key=config.api_key, max_retries=0)
 
     def make_full_request(
         self,
-        initial_prompt: str,
+        messages: List[ChatMessage],
         *,
         json_output: bool = True,
     ) -> str:
+        total_length = sum(len(m.get("content", "")) for m in messages)
+        last_user = next(
+            (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
+        )
         logger.info(
-            "harvey.llm.request model=%s prompt_length=%d prompt_preview=%s",
+            "harvey.llm.request model=%s messages=%d total_length=%d last_user_preview=%s",
             self._config.model,
-            len(initial_prompt),
-            self._truncate_for_log(initial_prompt),
+            len(messages),
+            total_length,
+            self._truncate_for_log(last_user),
         )
 
         try:
-            raw_response, finish_reason = self._send_prompt(initial_prompt, self._config.model)
+            raw_response, finish_reason = self._send_prompt(messages, self._config.model)
         except RateLimitError as exc:
             logger.error("harvey.llm.rate_limit_failure model=%s", self._config.model)
             raise RuntimeError("LLM rate limit reached. Please retry shortly.") from exc
@@ -90,7 +97,7 @@ class OpenAIClient:
         )
         return cleaned_response
 
-    def _send_prompt(self, prompt: str, model: str) -> tuple[str, str]:
+    def _send_prompt(self, messages: List[ChatMessage], model: str) -> tuple[str, str]:
         delay = max(self._config.api_retry_backoff, 0.5)
         max_delay = max(self._config.api_retry_backoff_max, delay)
         multiplier = max(self._config.api_retry_multiplier, 1.0)
@@ -99,7 +106,7 @@ class OpenAIClient:
             try:
                 completion = self._client.chat.completions.create(
                     model=model,
-                    messages=[{"role": "user", "content": prompt}],
+                    messages=messages,
                 )
                 message = completion.choices[0].message
                 content = message.content or ""

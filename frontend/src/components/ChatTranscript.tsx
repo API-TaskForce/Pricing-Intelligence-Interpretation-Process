@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 
@@ -11,6 +12,12 @@ interface Props {
 }
 
 function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect }: Props) {
+  const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
+  }, [messages.length, isLoading]);
+
   return (
     <div className="chat-transcript" aria-live="polite" aria-busy={isLoading}>
       {messages.length === 0 && !isLoading ? (
@@ -67,6 +74,7 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
         </article>
       ))}
       {isLoading ? <div className="message message-assistant">Processing request...</div> : null}
+      <div ref={bottomRef} />
     </div>
   );
 }
