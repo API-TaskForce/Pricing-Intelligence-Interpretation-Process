@@ -5,6 +5,7 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   createdAt: string;
+  chartHtml?: string;
   metadata?: {
     plan?: Record<string, unknown>;
     result?: Record<string, unknown>;

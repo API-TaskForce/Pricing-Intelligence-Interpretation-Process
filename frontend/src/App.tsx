@@ -211,6 +211,11 @@ function App() {
       );
       const data = await chatWithAgent(requestBody);
 
+      const chartHtml: string | undefined =
+        typeof data?.result?.payload?.html === "string"
+          ? data.result.payload.html
+          : undefined;
+
       setMessages((prev) => [
         ...prev,
         {
@@ -218,6 +223,7 @@ function App() {
           role: "assistant",
           content: data.answer ?? "No response available.",
           createdAt: new Date().toISOString(),
+          chartHtml,
           metadata: {
             plan: data.plan ?? undefined,
             result: data.result ?? undefined,
