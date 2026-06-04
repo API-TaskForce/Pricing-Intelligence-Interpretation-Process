@@ -78,4 +78,5 @@ export type ChatRequest = {
   datasheet_yaml?: string;
   datasheet_yamls?: string[];
   history?: Array<{ role: string; content: string }>;
+  force_chart?: boolean;
 };

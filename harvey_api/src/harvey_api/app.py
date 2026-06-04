@@ -41,6 +41,7 @@ class ChatRequest(BaseModel):
     datasheet_url: Optional[str] = None
     datasheet_urls: Optional[List[str]] = None
     history: Optional[List[Dict[str, str]]] = None
+    force_chart: bool = False
 
 
 class ChatResponse(BaseModel):
@@ -93,6 +94,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             datasheet_contents=yaml_contents or None,
             datasheet_urls=url_list or None,
             history=request.history,
+            force_chart=request.force_chart,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc

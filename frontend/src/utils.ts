@@ -52,7 +52,8 @@ export async function deleteYamlPricing(filename: string): Promise<void> {
 export function buildChatRequest(
   question: string,
   yamls: string[],
-  history: Array<{ role: string; content: string }> = []
+  history: Array<{ role: string; content: string }> = [],
+  forceChart = false
 ): ChatRequest {
   const request: ChatRequest = { question };
   if (yamls.length === 1) {
@@ -62,6 +63,9 @@ export function buildChatRequest(
   }
   if (history.length > 0) {
     request.history = history;
+  }
+  if (forceChart) {
+    request.force_chart = true;
   }
   return request;
 }

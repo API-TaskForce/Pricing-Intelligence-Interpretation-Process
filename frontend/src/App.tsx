@@ -29,12 +29,20 @@ const initTheme = (): ThemeType => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
+const initAlwaysCharts = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("pricing-always-charts") === "true";
+};
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextItems, setContextItems] = useState<PricingContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
+  const [alwaysShowCharts, setAlwaysShowCharts] = useState<boolean>(() =>
+    initAlwaysCharts()
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -42,6 +50,15 @@ function App() {
       window.localStorage.setItem("pricing-theme", theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "pricing-always-charts",
+        String(alwaysShowCharts)
+      );
+    }
+  }, [alwaysShowCharts]);
 
   const isSubmitDisabled = useMemo(
     () => isLoading || !question.trim(),
@@ -204,10 +221,14 @@ function App() {
     setIsLoading(true);
 
     try {
+      // When the "always show charts" toggle is on we ask the backend to force
+      // a visualisation whenever one is possible (force_chart). The agent then
+      // prefers its *_chart tool variants. When off, behaviour is unchanged.
       const requestBody = buildChatRequest(
         trimmedQuestion,
         getUniqueYamls(),
-        messages.map((m) => ({ role: m.role, content: m.content }))
+        messages.map((m) => ({ role: m.role, content: m.content })),
+        alwaysShowCharts
       );
       const data = await chatWithAgent(requestBody);
 
@@ -261,6 +282,19 @@ function App() {
             <div className="header-actions">
               <button
                 type="button"
+                className="chart-pref-toggle"
+                onClick={() => setAlwaysShowCharts((previous) => !previous)}
+                aria-pressed={alwaysShowCharts}
+                title={
+                  alwaysShowCharts
+                    ? "Las gráficas se generan y muestran automáticamente. Pulsa para que se te pregunte antes."
+                    : "Se te preguntará antes de mostrar una gráfica. Pulsa para incluirlas siempre que sea posible."
+                }
+              >
+                {alwaysShowCharts ? "📊 Gráficas: siempre" : "📊 Gráficas: preguntar"}
+              </button>
+              <button
+                type="button"
                 className="session-reset"
                 onClick={handleNewConversation}
                 disabled={isLoading}
@@ -282,6 +316,7 @@ function App() {
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
+                alwaysShowCharts={alwaysShowCharts}
                 promptPresets={PROMPT_PRESETS}
                 onPresetSelect={handlePromptSelect}
               />

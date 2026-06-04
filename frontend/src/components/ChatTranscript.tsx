@@ -4,17 +4,32 @@ import remarkGfm from 'remark-gfm';
 
 import type { ChatMessage, PromptPreset } from '../types';
 import ChartModal from './ChartModal';
+import ChartInline from './ChartInline';
 
 interface Props {
   messages: ChatMessage[];
   isLoading: boolean;
+  alwaysShowCharts?: boolean;
   promptPresets?: PromptPreset[];
   onPresetSelect?: (preset: PromptPreset) => void;
 }
 
-function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelect }: Props) {
+function ChatTranscript({
+  messages,
+  isLoading,
+  alwaysShowCharts = false,
+  promptPresets = [],
+  onPresetSelect,
+}: Props) {
   const [activeChart, setActiveChart] = useState<string | null>(null);
+  const [revealedCharts, setRevealedCharts] = useState<Set<string>>(new Set());
+  const [dismissedCharts, setDismissedCharts] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  const revealChart = (id: string) =>
+    setRevealedCharts((prev) => new Set(prev).add(id));
+  const dismissChart = (id: string) =>
+    setDismissedCharts((prev) => new Set(prev).add(id));
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -58,13 +73,42 @@ function ChatTranscript({ messages, isLoading, promptPresets = [], onPresetSelec
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
           {message.chartHtml ? (
-            <button
-              type="button"
-              className="chart-open-btn"
-              onClick={() => setActiveChart(message.chartHtml!)}
-            >
-              📊 Ver gráfico de curva de capacidad
-            </button>
+            alwaysShowCharts || revealedCharts.has(message.id) ? (
+              <ChartInline
+                html={message.chartHtml}
+                onExpand={() => setActiveChart(message.chartHtml!)}
+              />
+            ) : dismissedCharts.has(message.id) ? (
+              <button
+                type="button"
+                className="chart-open-btn"
+                onClick={() => revealChart(message.id)}
+              >
+                📊 Ver gráfico de curva de capacidad
+              </button>
+            ) : (
+              <div className="chart-ask">
+                <span className="chart-ask-text">
+                  📊 Esta respuesta incluye una gráfica de curva de capacidad. ¿Quieres verla?
+                </span>
+                <div className="chart-ask-actions">
+                  <button
+                    type="button"
+                    className="chart-open-btn"
+                    onClick={() => revealChart(message.id)}
+                  >
+                    Ver gráfica
+                  </button>
+                  <button
+                    type="button"
+                    className="chart-dismiss-btn"
+                    onClick={() => dismissChart(message.id)}
+                  >
+                    Ahora no
+                  </button>
+                </div>
+              </div>
+            )
           ) : null}
           {message.metadata?.plan || message.metadata?.result ? (
             <details>

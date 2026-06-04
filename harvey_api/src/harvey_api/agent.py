@@ -87,6 +87,25 @@ STANDALONE_TO_DATASHEET: Dict[str, str] = {
     "capacity_curve_inflection": "datasheet_capacity_curve_inflection",
 }
 
+# Base actions whose chart-producing variant should be used when the caller
+# requests that every answer include a visualisation (force_chart). The chart
+# variants accept the same params (chart-only extras default safely), so a plain
+# rename is enough. capacity_curve_inflection / datasheet_capacity_curve_inflection
+# already produce charts and need no remapping.
+TO_CHART_VARIANT: Dict[str, str] = {
+    "budget_recommendation": "budget_recommendation_chart",
+    "demand_evaluation": "demand_evaluation_chart",
+}
+
+FORCE_CHART_INSTRUCTION = (
+    "CHART PREFERENCE (user setting enabled): The user wants every answer to include a "
+    "visualisation whenever one is possible. Whenever the action you choose has a chart "
+    "variant, you MUST use that variant: budget_recommendation_chart instead of "
+    "budget_recommendation, demand_evaluation_chart instead of demand_evaluation, and "
+    "capacity_curve_inflection / datasheet_capacity_curve_inflection for capacity-curve "
+    "questions. Never answer in plain text when a *_chart tool can satisfy the question."
+)
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 PLAN_RESPONSE_FORMAT_INSTRUCTIONS = """Respond with a single JSON object:
@@ -452,6 +471,7 @@ class HarveyAgent:
         datasheet_contents: Optional[List[str]] = None,
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
     ) -> Dict[str, Any]:
         provided_datasheets = [content for content in (datasheet_contents or []) if content]
         datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
@@ -462,6 +482,7 @@ class HarveyAgent:
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=provided_urls,
             history=history,
+            force_chart=force_chart,
         )
 
         plan = self._apply_clarification_fallback(
@@ -493,6 +514,8 @@ class HarveyAgent:
                 datasheet_alias_map=datasheet_alias_map,
                 datasheet_urls=provided_urls,
             )
+        if force_chart:
+            actions = self._remap_to_chart(actions)
 
         results, last_payload = await self._execute_actions(
             actions=actions,
@@ -517,12 +540,14 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
     ) -> Dict[str, Any]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=datasheet_urls,
             history=history,
+            force_chart=force_chart,
         )
 
         attempt_errors: List[str] = []
@@ -567,9 +592,12 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
     ) -> List[ChatMessage]:
         has_datasheet = bool(datasheet_alias_map or datasheet_urls)
         system_parts = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
+        if force_chart:
+            system_parts.append(FORCE_CHART_INSTRUCTION)
         if has_datasheet:
             system_parts.append(PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS)
         if has_datasheet:
@@ -1703,6 +1731,22 @@ class HarveyAgent:
                 if old_params.get(key) is not None:
                     new_params[key] = old_params[key]
             remapped.append(PlannedAction(name=new_name, params=new_params))
+        return remapped
+
+    def _remap_to_chart(self, actions: List[PlannedAction]) -> List[PlannedAction]:
+        """Swap base actions for their chart-producing variant (force_chart mode)."""
+        remapped: List[PlannedAction] = []
+        for action in actions:
+            new_name = TO_CHART_VARIANT.get(action.name)
+            if new_name is None:
+                remapped.append(action)
+                continue
+            logger.info(
+                "harvey.agent.force_chart_remap",
+                from_tool=action.name,
+                to_tool=new_name,
+            )
+            remapped.append(PlannedAction(name=new_name, params=action.params))
         return remapped
 
     def _normalize_actions(self, raw_actions: Any) -> List[PlannedAction]:

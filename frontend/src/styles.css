@@ -1843,3 +1843,115 @@ button.context-add-url {
   flex: 1;
   border: none;
 }
+
+.chart-pref-toggle {
+  align-self: flex-start;
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chart-pref-toggle:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-color);
+}
+
+.chart-pref-toggle[aria-pressed='true'] {
+  background: var(--accent-color, #667eea);
+  color: #fff;
+  border-color: transparent;
+}
+
+.chart-inline {
+  margin-top: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.chart-inline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.chart-inline-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.chart-expand-btn {
+  padding: 0.3rem 0.7rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 0.4rem;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart-expand-btn:hover {
+  border-color: var(--accent-color);
+}
+
+.chart-inline-iframe {
+  width: 100%;
+  height: 480px;
+  border: none;
+  display: block;
+}
+
+.chart-ask {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--card-border);
+  border-radius: 0.6rem;
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.chart-ask-text {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.6rem;
+}
+
+.chart-ask-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chart-ask-actions .chart-open-btn {
+  margin-top: 0;
+}
+
+.chart-dismiss-btn {
+  padding: 0.55rem 1.1rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart-dismiss-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
