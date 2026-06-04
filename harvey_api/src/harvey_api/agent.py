@@ -111,12 +111,16 @@ CHART_ONLY_ACTIONS: Set[str] = {
     "datasheet_capacity_curve_inflection",
 }
 
-# Every action from which a chart could be produced (directly, or by upgrading to
-# its *_chart variant). Drives the "a chart is available" signal for the UI.
+# Every action from which a chart could be produced: directly, by upgrading to a
+# *_chart variant, or by deriving an inflection capacity-curve from its rate/quota
+# (any BoundedRate action) or datasheet params. Drives the "a chart is available"
+# signal for the UI and what force_chart can visualise. NAV actions are excluded.
 CHART_CAPABLE_ACTIONS: Set[str] = (
     CHART_ONLY_ACTIONS
     | set(TO_CHART_VARIANT.keys())
     | set(TO_CHART_VARIANT.values())
+    | RATE_QUOTA_ACTIONS
+    | DATASHEET_ACTIONS
 )
 
 FORCE_CHART_INSTRUCTION = (
@@ -543,8 +547,13 @@ class HarveyAgent:
         chart_available = any(a.name in CHART_CAPABLE_ACTIONS for a in actions)
 
         if force_chart:
-            # "Always charts" mode: upgrade to the chart-producing variant.
+            # "Always charts" mode: upgrade budget/demand to their chart variant,
+            # and add an inflection capacity-curve for BoundedRate/datasheet
+            # capacity questions that have no chart of their own.
             actions = self._remap_to_chart(actions)
+            actions = self._ensure_capacity_curve(
+                actions, has_datasheet=bool(datasheet_alias_map or provided_urls)
+            )
         else:
             # "Ask" mode: do NOT spend time generating a chart — suppress chart
             # tools so the text answer comes back fast. The UI asks first and
@@ -1787,6 +1796,69 @@ class HarveyAgent:
             )
             remapped.append(PlannedAction(name=new_name, params=action.params))
         return remapped
+
+    def _ensure_capacity_curve(
+        self, actions: List[PlannedAction], *, has_datasheet: bool
+    ) -> List[PlannedAction]:
+        """force_chart mode: if no chart action is present but a capacity/consumption
+        action is (any BoundedRate or datasheet calc action), append an inflection
+        capacity-curve chart derived from its rate/quota (or datasheet params). The
+        original action is kept so the text answer (e.g. the consumption time) stays."""
+        chart_present = any(
+            a.name in CHART_ONLY_ACTIONS or a.name in set(TO_CHART_VARIANT.values())
+            for a in actions
+        )
+        if chart_present:
+            return actions
+
+        if has_datasheet:
+            ds_actions = [
+                a for a in actions
+                if a.name in DATASHEET_ACTIONS and (a.params or {}).get("datasheet_source")
+            ]
+            if not ds_actions:
+                return actions
+            first = ds_actions[0]
+            p = first.params or {}
+            new_params: Dict[str, Any] = {
+                "datasheet_source": p["datasheet_source"],
+                "time_interval": p.get("time_interval", "1day"),
+            }
+            if p.get("capacity_unit") is not None:
+                new_params["capacity_unit"] = p["capacity_unit"]
+            if p.get("capacity_request_factor") is not None:
+                new_params["capacity_request_factor"] = p["capacity_request_factor"]
+            # Several datasheet actions (e.g. one per plan) means a multi-plan
+            # question → chart ALL plans by leaving plan_name/endpoint unset. A
+            # single action keeps its plan/endpoint scope.
+            if len(ds_actions) == 1:
+                for key in ("plan_name", "endpoint_path", "alias"):
+                    if p.get(key) is not None:
+                        new_params[key] = p[key]
+            logger.info(
+                "harvey.agent.add_capacity_curve",
+                variant="datasheet",
+                source_tool=first.name,
+                datasheet_actions=len(ds_actions),
+            )
+            return actions + [
+                PlannedAction(name="datasheet_capacity_curve_inflection", params=new_params)
+            ]
+
+        for a in actions:
+            if a.name not in RATE_QUOTA_ACTIONS:
+                continue
+            p = a.params or {}
+            if p.get("rate") is None and p.get("quota") is None:
+                continue
+            new_params = {"time_interval": p.get("time_interval", "1day")}
+            if p.get("rate") is not None:
+                new_params["rate"] = p["rate"]
+            if p.get("quota") is not None:
+                new_params["quota"] = p["quota"]
+            logger.info("harvey.agent.add_capacity_curve", variant="standalone", source_tool=a.name)
+            return actions + [PlannedAction(name="capacity_curve_inflection", params=new_params)]
+        return actions
 
     def _suppress_charts(self, actions: List[PlannedAction]) -> List[PlannedAction]:
         """Ask mode: avoid generating charts. Downgrade *_chart tools to their text

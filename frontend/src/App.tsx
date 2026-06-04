@@ -17,6 +17,7 @@ import {
   buildChatRequest,
   deleteYamlPricing,
   uploadYamlPricing,
+  extractChartHtml,
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
 
@@ -238,10 +239,7 @@ function App() {
         : baseRequest;
       const data = await chatWithAgent(requestBody);
 
-      const chartHtml: string | undefined =
-        typeof data?.result?.payload?.html === "string"
-          ? data.result.payload.html
-          : undefined;
+      const chartHtml = extractChartHtml(data?.result);
       const chartAvailable = data?.chart_available === true;
 
       setMessages((prev) => [
@@ -286,10 +284,7 @@ function App() {
     setGeneratingChartIds((prev) => new Set(prev).add(messageId));
     try {
       const data = await chatWithAgent(target.pendingChartRequest);
-      const chartHtml: string | undefined =
-        typeof data?.result?.payload?.html === "string"
-          ? data.result.payload.html
-          : undefined;
+      const chartHtml = extractChartHtml(data?.result);
       setMessages((prev) =>
         prev.map((m) =>
           m.id === messageId
