@@ -4,12 +4,12 @@ import remarkGfm from 'remark-gfm';
 
 import type { ChatMessage, PromptPreset } from '../types';
 import ChartModal from './ChartModal';
-import ChartInline from './ChartInline';
 
 interface Props {
   messages: ChatMessage[];
   isLoading: boolean;
-  alwaysShowCharts?: boolean;
+  generatingChartIds?: Set<string>;
+  onGenerateChart?: (messageId: string) => void;
   promptPresets?: PromptPreset[];
   onPresetSelect?: (preset: PromptPreset) => void;
 }
@@ -17,23 +17,90 @@ interface Props {
 function ChatTranscript({
   messages,
   isLoading,
-  alwaysShowCharts = false,
+  generatingChartIds,
+  onGenerateChart,
   promptPresets = [],
   onPresetSelect,
 }: Props) {
   const [activeChart, setActiveChart] = useState<string | null>(null);
-  const [revealedCharts, setRevealedCharts] = useState<Set<string>>(new Set());
   const [dismissedCharts, setDismissedCharts] = useState<Set<string>>(new Set());
   const bottomRef = useRef<HTMLDivElement>(null);
 
-  const revealChart = (id: string) =>
-    setRevealedCharts((prev) => new Set(prev).add(id));
   const dismissChart = (id: string) =>
     setDismissedCharts((prev) => new Set(prev).add(id));
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length, isLoading]);
+
+  const renderChartArea = (message: ChatMessage) => {
+    // A chart already exists → always shown via a button that opens the modal.
+    if (message.chartHtml) {
+      return (
+        <button
+          type="button"
+          className="chart-open-btn"
+          onClick={() => setActiveChart(message.chartHtml!)}
+        >
+          📊 Ver gráfica
+        </button>
+      );
+    }
+
+    const isGenerating = generatingChartIds?.has(message.id) ?? false;
+    if (isGenerating) {
+      return (
+        <div className="chart-generating">
+          <span className="chart-spinner" aria-hidden="true" />
+          <span>
+            Generando gráfica
+            <span className="chart-dots" aria-hidden="true">
+              <span>.</span>
+              <span>.</span>
+              <span>.</span>
+            </span>
+          </span>
+        </div>
+      );
+    }
+
+    if (message.chartError) {
+      return (
+        <div className="chart-ask-text chart-error">
+          No se pudo generar una gráfica para esta respuesta.
+        </div>
+      );
+    }
+
+    // Ask mode: a chart is possible but not generated yet → offer to generate it.
+    if (message.chartAvailable && !dismissedCharts.has(message.id)) {
+      return (
+        <div className="chart-ask">
+          <span className="chart-ask-text">
+            📊 Para esta respuesta puedo generar una gráfica. ¿Quieres que la genere?
+          </span>
+          <div className="chart-ask-actions">
+            <button
+              type="button"
+              className="chart-open-btn"
+              onClick={() => onGenerateChart?.(message.id)}
+            >
+              Sí, generar gráfica
+            </button>
+            <button
+              type="button"
+              className="chart-dismiss-btn"
+              onClick={() => dismissChart(message.id)}
+            >
+              No
+            </button>
+          </div>
+        </div>
+      );
+    }
+
+    return null;
+  };
 
   return (
     <div className="chat-transcript" aria-live="polite" aria-busy={isLoading}>
@@ -72,44 +139,7 @@ function ChatTranscript({
           <div className="message-content">
             <ReactMarkdown remarkPlugins={[remarkGfm]}>{message.content}</ReactMarkdown>
           </div>
-          {message.chartHtml ? (
-            alwaysShowCharts || revealedCharts.has(message.id) ? (
-              <ChartInline
-                html={message.chartHtml}
-                onExpand={() => setActiveChart(message.chartHtml!)}
-              />
-            ) : dismissedCharts.has(message.id) ? (
-              <button
-                type="button"
-                className="chart-open-btn"
-                onClick={() => revealChart(message.id)}
-              >
-                📊 Ver gráfico de curva de capacidad
-              </button>
-            ) : (
-              <div className="chart-ask">
-                <span className="chart-ask-text">
-                  📊 Esta respuesta incluye una gráfica de curva de capacidad. ¿Quieres verla?
-                </span>
-                <div className="chart-ask-actions">
-                  <button
-                    type="button"
-                    className="chart-open-btn"
-                    onClick={() => revealChart(message.id)}
-                  >
-                    Ver gráfica
-                  </button>
-                  <button
-                    type="button"
-                    className="chart-dismiss-btn"
-                    onClick={() => dismissChart(message.id)}
-                  >
-                    Ahora no
-                  </button>
-                </div>
-              </div>
-            )
-          ) : null}
+          {renderChartArea(message)}
           {message.metadata?.plan || message.metadata?.result ? (
             <details>
               <summary>View H.A.R.V.E.Y. context</summary>

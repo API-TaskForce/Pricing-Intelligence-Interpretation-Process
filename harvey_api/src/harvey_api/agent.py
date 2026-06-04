@@ -97,6 +97,28 @@ TO_CHART_VARIANT: Dict[str, str] = {
     "demand_evaluation": "demand_evaluation_chart",
 }
 
+# Reverse of TO_CHART_VARIANT plus the chart-only tools: used to "suppress" chart
+# generation in ask mode so the text answer returns fast.
+CHART_TO_BASE: Dict[str, str] = {
+    "budget_recommendation_chart": "budget_recommendation",
+    "demand_evaluation_chart": "demand_evaluation",
+}
+
+# Chart-only tools that have no text-producing counterpart. In ask mode they are
+# dropped from execution entirely (regenerated later if the user confirms).
+CHART_ONLY_ACTIONS: Set[str] = {
+    "capacity_curve_inflection",
+    "datasheet_capacity_curve_inflection",
+}
+
+# Every action from which a chart could be produced (directly, or by upgrading to
+# its *_chart variant). Drives the "a chart is available" signal for the UI.
+CHART_CAPABLE_ACTIONS: Set[str] = (
+    CHART_ONLY_ACTIONS
+    | set(TO_CHART_VARIANT.keys())
+    | set(TO_CHART_VARIANT.values())
+)
+
 FORCE_CHART_INSTRUCTION = (
     "CHART PREFERENCE (user setting enabled): The user wants every answer to include a "
     "visualisation whenever one is possible. Whenever the action you choose has a chart "
@@ -514,8 +536,20 @@ class HarveyAgent:
                 datasheet_alias_map=datasheet_alias_map,
                 datasheet_urls=provided_urls,
             )
+
+        # Whether a chart could be produced for this question (independent of
+        # whether we actually generate it now). Used by the UI to offer "generate
+        # a chart?" in ask mode.
+        chart_available = any(a.name in CHART_CAPABLE_ACTIONS for a in actions)
+
         if force_chart:
+            # "Always charts" mode: upgrade to the chart-producing variant.
             actions = self._remap_to_chart(actions)
+        else:
+            # "Ask" mode: do NOT spend time generating a chart — suppress chart
+            # tools so the text answer comes back fast. The UI asks first and
+            # re-requests with force_chart=true only if the user confirms.
+            actions = self._suppress_charts(actions)
 
         results, last_payload = await self._execute_actions(
             actions=actions,
@@ -528,7 +562,12 @@ class HarveyAgent:
             datasheet_urls=provided_urls, history=history,
         )
 
-        return {"plan": plan, "result": result_payload, "answer": answer}
+        return {
+            "plan": plan,
+            "result": result_payload,
+            "answer": answer,
+            "chart_available": chart_available,
+        }
 
     # ------------------------------------------------------------------
     # Plan generation
@@ -1748,6 +1787,27 @@ class HarveyAgent:
             )
             remapped.append(PlannedAction(name=new_name, params=action.params))
         return remapped
+
+    def _suppress_charts(self, actions: List[PlannedAction]) -> List[PlannedAction]:
+        """Ask mode: avoid generating charts. Downgrade *_chart tools to their text
+        variant and drop chart-only tools so the answer returns fast. The chart is
+        (re)generated later via force_chart only if the user confirms."""
+        suppressed: List[PlannedAction] = []
+        for action in actions:
+            if action.name in CHART_ONLY_ACTIONS:
+                logger.info("harvey.agent.suppress_chart_drop", tool=action.name)
+                continue
+            base = CHART_TO_BASE.get(action.name)
+            if base is not None:
+                logger.info(
+                    "harvey.agent.suppress_chart_downgrade",
+                    from_tool=action.name,
+                    to_tool=base,
+                )
+                suppressed.append(PlannedAction(name=base, params=action.params))
+            else:
+                suppressed.append(action)
+        return suppressed
 
     def _normalize_actions(self, raw_actions: Any) -> List[PlannedAction]:
         if not isinstance(raw_actions, list):

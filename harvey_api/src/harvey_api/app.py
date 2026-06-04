@@ -48,6 +48,7 @@ class ChatResponse(BaseModel):
     answer: str
     plan: Dict[str, Any]
     result: Dict[str, Any]
+    chart_available: bool = False
 
 
 def get_file_manager():
@@ -107,6 +108,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         answer=response_payload["answer"],
         plan=response_payload["plan"],
         result=response_payload["result"],
+        chart_available=bool(response_payload.get("chart_available", False)),
     )
 
 

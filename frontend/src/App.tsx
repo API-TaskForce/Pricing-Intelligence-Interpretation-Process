@@ -5,6 +5,7 @@ import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
 import type {
   ChatMessage,
+  ChatRequest,
   PricingContextItem,
   PromptPreset,
   ContextInputType,
@@ -42,6 +43,9 @@ function App() {
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
   const [alwaysShowCharts, setAlwaysShowCharts] = useState<boolean>(() =>
     initAlwaysCharts()
+  );
+  const [generatingChartIds, setGeneratingChartIds] = useState<Set<string>>(
+    new Set()
   );
 
   useEffect(() => {
@@ -221,21 +225,24 @@ function App() {
     setIsLoading(true);
 
     try {
-      // When the "always show charts" toggle is on we ask the backend to force
-      // a visualisation whenever one is possible (force_chart). The agent then
-      // prefers its *_chart tool variants. When off, behaviour is unchanged.
-      const requestBody = buildChatRequest(
+      // Base request (ask mode). With the toggle on we force the chart up front;
+      // with it off the backend suppresses the chart for speed and only reports
+      // that one is available, so the UI can ask before generating it.
+      const baseRequest = buildChatRequest(
         trimmedQuestion,
         getUniqueYamls(),
-        messages.map((m) => ({ role: m.role, content: m.content })),
-        alwaysShowCharts
+        messages.map((m) => ({ role: m.role, content: m.content }))
       );
+      const requestBody: ChatRequest = alwaysShowCharts
+        ? { ...baseRequest, force_chart: true }
+        : baseRequest;
       const data = await chatWithAgent(requestBody);
 
       const chartHtml: string | undefined =
         typeof data?.result?.payload?.html === "string"
           ? data.result.payload.html
           : undefined;
+      const chartAvailable = data?.chart_available === true;
 
       setMessages((prev) => [
         ...prev,
@@ -245,6 +252,9 @@ function App() {
           content: data.answer ?? "No response available.",
           createdAt: new Date().toISOString(),
           chartHtml,
+          // Only relevant in ask mode (no chart generated yet, but one is possible).
+          chartAvailable: !chartHtml && chartAvailable,
+          pendingChartRequest: { ...baseRequest, force_chart: true },
           metadata: {
             plan: data.plan ?? undefined,
             result: data.result ?? undefined,
@@ -263,6 +273,48 @@ function App() {
       ]);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  // Ask mode: the user confirmed they want the chart, so re-run the same request
+  // with force_chart to actually call the tool and attach the chart HTML.
+  const handleGenerateChart = async (messageId: string) => {
+    const target = messages.find((m) => m.id === messageId);
+    if (!target?.pendingChartRequest) return;
+    if (generatingChartIds.has(messageId)) return;
+
+    setGeneratingChartIds((prev) => new Set(prev).add(messageId));
+    try {
+      const data = await chatWithAgent(target.pendingChartRequest);
+      const chartHtml: string | undefined =
+        typeof data?.result?.payload?.html === "string"
+          ? data.result.payload.html
+          : undefined;
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                chartHtml,
+                chartAvailable: false,
+                chartError: !chartHtml,
+              }
+            : m
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, chartAvailable: false, chartError: true } : m
+        )
+      );
+      console.error("Chart generation failed", error);
+    } finally {
+      setGeneratingChartIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
     }
   };
 
@@ -316,7 +368,8 @@ function App() {
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
-                alwaysShowCharts={alwaysShowCharts}
+                generatingChartIds={generatingChartIds}
+                onGenerateChart={handleGenerateChart}
                 promptPresets={PROMPT_PRESETS}
                 onPresetSelect={handlePromptSelect}
               />

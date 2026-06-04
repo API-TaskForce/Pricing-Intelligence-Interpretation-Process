@@ -1955,3 +1955,58 @@ button.context-add-url {
   color: var(--text-primary);
   border-color: var(--accent-color);
 }
+
+.chart-generating {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.chart-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--accent-color, #667eea);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: chart-spin 0.7s linear infinite;
+}
+
+@keyframes chart-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-dots span {
+  opacity: 0;
+  animation: chart-dot-blink 1.4s infinite both;
+}
+
+.chart-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chart-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chart-dot-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.chart-error {
+  margin-top: 0.75rem;
+  color: var(--danger-color, #ef4444);
+}
