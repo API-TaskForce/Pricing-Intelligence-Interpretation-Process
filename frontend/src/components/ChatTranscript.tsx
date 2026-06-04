@@ -85,7 +85,7 @@ function ChatTranscript({
               className="chart-open-btn"
               onClick={() => onGenerateChart?.(message.id)}
             >
-              Sí, generar gráfica
+              Sí
             </button>
             <button
               type="button"

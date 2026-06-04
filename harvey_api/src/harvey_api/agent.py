@@ -546,8 +546,16 @@ class HarveyAgent:
         # a chart?" in ask mode.
         chart_available = any(a.name in CHART_CAPABLE_ACTIONS for a in actions)
 
-        if force_chart:
-            # "Always charts" mode: upgrade budget/demand to their chart variant,
+        # Did the user explicitly ask to visualise? The planner only picks a
+        # chart tool (capacity_curve_inflection / *_chart) when the question asks
+        # for a graph. In that case we never ask again — generate it now.
+        explicit_chart_request = any(
+            a.name in CHART_ONLY_ACTIONS or a.name in set(TO_CHART_VARIANT.values())
+            for a in actions
+        )
+
+        if force_chart or explicit_chart_request:
+            # Generate the chart now: upgrade budget/demand to their chart variant,
             # and add an inflection capacity-curve for BoundedRate/datasheet
             # capacity questions that have no chart of their own.
             actions = self._remap_to_chart(actions)
@@ -555,9 +563,10 @@ class HarveyAgent:
                 actions, has_datasheet=bool(datasheet_alias_map or provided_urls)
             )
         else:
-            # "Ask" mode: do NOT spend time generating a chart — suppress chart
-            # tools so the text answer comes back fast. The UI asks first and
-            # re-requests with force_chart=true only if the user confirms.
+            # "Ask" mode and no explicit chart request: do NOT spend time
+            # generating a chart — suppress chart tools so the text answer comes
+            # back fast. The UI asks first and re-requests with force_chart=true
+            # only if the user confirms.
             actions = self._suppress_charts(actions)
 
         results, last_payload = await self._execute_actions(
