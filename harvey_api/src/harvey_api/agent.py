@@ -14,6 +14,7 @@ from .config import get_settings
 from .logging import get_logger
 from .llm_client import (
     ChatMessage,
+    LLMUsage,
     OpenAIClientConfig,
     OpenAIClient,
 )
@@ -25,7 +26,6 @@ logger = get_logger(__name__)
 RATE_QUOTA_ACTIONS: Set[str] = {
     "min_time",
     "capacity_at",
-    "capacity_during",
     "quota_exhaustion_threshold",
     "rates",
     "quotas",
@@ -37,7 +37,6 @@ RATE_QUOTA_ACTIONS: Set[str] = {
 DATASHEET_ACTIONS: Set[str] = {
     "datasheet_min_time",
     "datasheet_capacity_at",
-    "datasheet_capacity_during",
     "datasheet_quota_exhaustion_threshold",
     "datasheet_idle_time_period",
     "datasheet_rates",
@@ -78,7 +77,6 @@ MAX_HISTORY_TURNS = 20
 STANDALONE_TO_DATASHEET: Dict[str, str] = {
     "min_time": "datasheet_min_time",
     "capacity_at": "datasheet_capacity_at",
-    "capacity_during": "datasheet_capacity_during",
     "quota_exhaustion_threshold": "datasheet_quota_exhaustion_threshold",
     "rates": "datasheet_rates",
     "quotas": "datasheet_quotas",
@@ -142,7 +140,6 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 ## Bounded-rate tools (no datasheet)
   {"name": "min_time", "capacity_goal": number, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "capacity_at", "time": string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
-  {"name": "capacity_during", "end_instant": string, "start_instant"?: string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "quota_exhaustion_threshold", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "rates", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "quotas", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
@@ -153,7 +150,6 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 ## Datasheet calculation tools
   {"name": "datasheet_min_time", "datasheet_source": string, "capacity_goal": number, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_capacity_at", "datasheet_source": string, "time": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
-  {"name": "datasheet_capacity_during", "datasheet_source": string, "end_instant": string, "start_instant"?: string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_quota_exhaustion_threshold", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_idle_time_period", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_rates", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
@@ -181,7 +177,7 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 Rules:
 - Valid JSON, double quotes only. No markdown fences or natural language wrapper.
 - Leave actions empty only when the answer is directly inferable without any tool call.
-- CRITICAL: When an uploaded Datasheet or datasheet URL is present in context, you MUST use datasheet_* tools. NEVER use standalone tools (limits, rates, quotas, min_time, capacity_at, capacity_during, etc.) when a datasheet is available. Standalone tools only work when no datasheet exists and the user provides explicit rate/quota values.
+- CRITICAL: When an uploaded Datasheet or datasheet URL is present in context, you MUST use datasheet_* tools. NEVER use standalone tools (limits, rates, quotas, min_time, capacity_at, etc.) when a datasheet is available. Standalone tools only work when no datasheet exists and the user provides explicit rate/quota values.
 - plan_name is optional for datasheet tools. Omit when the user wants cross-plan results.
 - endpoint_path and alias are optional filters — omit when not specified by the user.
 - capacity_unit is optional — include when the user specifies a unit (e.g., "emails", "MBs").
@@ -239,9 +235,6 @@ Your goal is to create a precise execution plan to answer the user's question ab
 - **"capacity_at"**: Computes the accumulated capacity at a specific time instant from rate/quota objects.
   - **Use when:** The user asks "How many API calls in X days?" and provides rate/quota directly.
 
-- **"capacity_during"**: Computes capacity in a time window (not starting at t=0) from rate/quota objects.
-  - **Use when:** Evaluating a sliding window that does NOT start at t=0.
-
 - **"quota_exhaustion_threshold"**: Computes the minimum time to exhaust each quota at max rate.
   - **Use when:** "How fast can I blow through my quota?"
 
@@ -261,7 +254,6 @@ Use these when a datasheet is uploaded or referenced via URL.
 
 - **"datasheet_min_time"**: Min time to capacity goal from datasheet.
 - **"datasheet_capacity_at"**: Capacity at time T from datasheet.
-- **"datasheet_capacity_during"**: Capacity in a time window from datasheet.
 - **"datasheet_quota_exhaustion_threshold"**: Time to exhaust quotas from datasheet.
 - **"datasheet_idle_time_period"**: Idle time after quota exhaustion from datasheet.
 - **"datasheet_rates"**: Effective rates from datasheet.
@@ -343,7 +335,7 @@ Use these when the user wants to find the cheapest plan for a capacity goal.
 
 ### Planning Rules
 1. Analyse the user's intent.
-2. CRITICAL: If a datasheet or datasheet URL is present → ALWAYS use datasheet_* tools. This is non-negotiable. Never use standalone tools (limits, rates, quotas, min_time, capacity_at, capacity_during, quota_exhaustion_threshold, idle_time_period, capacity_curve_inflection) when any datasheet context exists.
+2. CRITICAL: If a datasheet or datasheet URL is present → ALWAYS use datasheet_* tools. This is non-negotiable. Never use standalone tools (limits, rates, quotas, min_time, capacity_at, quota_exhaustion_threshold, idle_time_period, capacity_curve_inflection) when any datasheet context exists.
 3. CRITICAL: If the user provides explicit rate AND/OR quota values and asks whether they are feasible/sustainable/compatible → ALWAYS use demand_evaluation as a SINGLE action. Map the rate to demands[].rate and the quota to demands[].quota. NEVER substitute this with separate datasheet_rates + datasheet_quotas calls — that approach does not answer the compatibility question, it only retrieves limits.
 4. If the user asks which plan is cheapest / fits a budget → use budget_recommendation or budget_recommendation_chart.
 5. If the user asks to visualise a chart → use the corresponding *_chart tool.
@@ -503,7 +495,7 @@ class HarveyAgent:
         datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
         provided_urls = [url for url in (datasheet_urls or []) if url]
 
-        plan = await self._generate_plan(
+        plan, plan_usage = await self._generate_plan(
             question,
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=provided_urls,
@@ -575,16 +567,18 @@ class HarveyAgent:
         )
 
         payload_for_answer, result_payload = self._compose_results_payload(actions, results, last_payload)
-        answer = await self._generate_answer(
+        answer, answer_usage = await self._generate_answer(
             question, plan, payload_for_answer, datasheet_alias_map,
             datasheet_urls=provided_urls, history=history,
         )
 
+        total_usage = plan_usage + answer_usage
         return {
             "plan": plan,
             "result": result_payload,
             "answer": answer,
             "chart_available": chart_available,
+            "usage": {"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
         }
 
     # ------------------------------------------------------------------
@@ -599,6 +593,7 @@ class HarveyAgent:
         history: Optional[List[Dict[str, str]]] = None,
         force_chart: bool = False,
     ) -> Dict[str, Any]:
+    ) -> tuple[Dict[str, Any], LLMUsage]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
@@ -608,6 +603,7 @@ class HarveyAgent:
         )
 
         attempt_errors: List[str] = []
+        total_usage = LLMUsage()
         for _ in range(PLAN_REQUEST_MAX_ATTEMPTS):
             attempt_messages: List[ChatMessage] = list(messages)
             if attempt_errors:
@@ -620,11 +616,12 @@ class HarveyAgent:
                 })
 
             try:
-                text = await asyncio.to_thread(
+                text, usage = await asyncio.to_thread(
                     self._llm.make_full_request,
                     attempt_messages,
                     json_output=True,
                 )
+                total_usage = total_usage + usage
             except ValueError as exc:
                 attempt_errors.append(f"LLM response was not valid JSON: {exc}")
                 continue
@@ -635,7 +632,7 @@ class HarveyAgent:
                 attempt_errors.append(str(exc))
                 continue
 
-            return self._normalise_plan(plan)
+            return self._normalise_plan(plan), total_usage
 
         raise ValueError(
             "Failed to obtain a valid planning response. "
@@ -754,7 +751,7 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
-    ) -> str:
+    ) -> tuple[str, LLMUsage]:
         system_parts = [ANSWER_PROMPT]
         if plan.get("response_mode") == "clarify":
             system_parts.append(ANSWER_CLARIFICATION_PROMPT)
@@ -786,12 +783,12 @@ class HarveyAgent:
 
         messages.append({"role": "user", "content": "\n\n".join(user_parts)})
 
-        response = await asyncio.to_thread(
+        response, usage = await asyncio.to_thread(
             self._llm.make_full_request,
             messages,
             json_output=False,
         )
-        return response or "No answer could be generated."
+        return response or "No answer could be generated.", usage
 
     # ------------------------------------------------------------------
     # Clarify mode
@@ -1945,11 +1942,6 @@ class HarveyAgent:
                 params["capacity_goal"] = entry["capacity_goal"]
             if name == "datasheet_capacity_at" and entry.get("time") is not None:
                 params["time"] = entry["time"]
-            if name == "datasheet_capacity_during":
-                if entry.get("end_instant") is not None:
-                    params["end_instant"] = entry["end_instant"]
-                if entry.get("start_instant") is not None:
-                    params["start_instant"] = entry["start_instant"]
             if name == "datasheet_capacity_curve_inflection" and entry.get("time_interval") is not None:
                 params["time_interval"] = entry["time_interval"]
             return PlannedAction(name=name, params=params)
@@ -2088,10 +2080,6 @@ class HarveyAgent:
             if action.name == "datasheet_capacity_at":
                 return await self._workflow.run_datasheet_capacity_at(
                     time=p.get("time", "0ms"), **common)
-            if action.name == "datasheet_capacity_during":
-                return await self._workflow.run_datasheet_capacity_during(
-                    end_instant=p.get("end_instant", "0ms"),
-                    start_instant=p.get("start_instant", "0ms"), **common)
             if action.name == "datasheet_quota_exhaustion_threshold":
                 return await self._workflow.run_datasheet_quota_exhaustion_threshold(**common)
             if action.name == "datasheet_idle_time_period":
@@ -2150,11 +2138,6 @@ class HarveyAgent:
         if action.name == "capacity_at":
             return await self._workflow.run_capacity_at(
                 time=p.get("time", "0ms"),
-                rate=p.get("rate"), quota=p.get("quota"))
-        if action.name == "capacity_during":
-            return await self._workflow.run_capacity_during(
-                end_instant=p.get("end_instant", "0ms"),
-                start_instant=p.get("start_instant", "0ms"),
                 rate=p.get("rate"), quota=p.get("quota"))
         if action.name == "quota_exhaustion_threshold":
             return await self._workflow.run_quota_exhaustion_threshold(

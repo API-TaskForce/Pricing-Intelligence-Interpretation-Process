@@ -243,7 +243,11 @@ function App() {
       const chartAvailable = data?.chart_available === true;
 
       setMessages((prev) => [
-        ...prev,
+        ...prev.map((m) =>
+          m.id === userMessage.id
+            ? { ...m, metadata: { usage: { inputTokens: data.usage?.input_tokens ?? 0 } } }
+            : m
+        ),
         {
           id: crypto.randomUUID(),
           role: "assistant",
@@ -256,6 +260,7 @@ function App() {
           metadata: {
             plan: data.plan ?? undefined,
             result: data.result ?? undefined,
+            usage: { outputTokens: data.usage?.output_tokens ?? 0 },
           },
         },
       ]);
