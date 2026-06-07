@@ -26,7 +26,6 @@ logger = get_logger(__name__)
 RATE_QUOTA_ACTIONS: Set[str] = {
     "min_time",
     "capacity_at",
-    "capacity_during",
     "quota_exhaustion_threshold",
     "rates",
     "quotas",
@@ -38,7 +37,6 @@ RATE_QUOTA_ACTIONS: Set[str] = {
 DATASHEET_ACTIONS: Set[str] = {
     "datasheet_min_time",
     "datasheet_capacity_at",
-    "datasheet_capacity_during",
     "datasheet_quota_exhaustion_threshold",
     "datasheet_idle_time_period",
     "datasheet_rates",
@@ -79,7 +77,6 @@ MAX_HISTORY_TURNS = 20
 STANDALONE_TO_DATASHEET: Dict[str, str] = {
     "min_time": "datasheet_min_time",
     "capacity_at": "datasheet_capacity_at",
-    "capacity_during": "datasheet_capacity_during",
     "quota_exhaustion_threshold": "datasheet_quota_exhaustion_threshold",
     "rates": "datasheet_rates",
     "quotas": "datasheet_quotas",
@@ -98,7 +95,6 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 ## Bounded-rate tools (no datasheet)
   {"name": "min_time", "capacity_goal": number, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "capacity_at", "time": string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
-  {"name": "capacity_during", "end_instant": string, "start_instant"?: string, "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "quota_exhaustion_threshold", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "rates", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
   {"name": "quotas", "rate"?: RateObject|[RateObject], "quota"?: QuotaObject|[QuotaObject]}
@@ -109,7 +105,6 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 ## Datasheet calculation tools
   {"name": "datasheet_min_time", "datasheet_source": string, "capacity_goal": number, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_capacity_at", "datasheet_source": string, "time": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
-  {"name": "datasheet_capacity_during", "datasheet_source": string, "end_instant": string, "start_instant"?: string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_quota_exhaustion_threshold", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_idle_time_period", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
   {"name": "datasheet_rates", "datasheet_source": string, "plan_name"?: string, "endpoint_path"?: string, "alias"?: string, "capacity_unit"?: string, "capacity_request_factor"?: number|string}
@@ -137,7 +132,7 @@ Action shapes — RateObject/QuotaObject: {"value": number, "unit": string, "per
 Rules:
 - Valid JSON, double quotes only. No markdown fences or natural language wrapper.
 - Leave actions empty only when the answer is directly inferable without any tool call.
-- CRITICAL: When an uploaded Datasheet or datasheet URL is present in context, you MUST use datasheet_* tools. NEVER use standalone tools (limits, rates, quotas, min_time, capacity_at, capacity_during, etc.) when a datasheet is available. Standalone tools only work when no datasheet exists and the user provides explicit rate/quota values.
+- CRITICAL: When an uploaded Datasheet or datasheet URL is present in context, you MUST use datasheet_* tools. NEVER use standalone tools (limits, rates, quotas, min_time, capacity_at, etc.) when a datasheet is available. Standalone tools only work when no datasheet exists and the user provides explicit rate/quota values.
 - plan_name is optional for datasheet tools. Omit when the user wants cross-plan results.
 - endpoint_path and alias are optional filters — omit when not specified by the user.
 - capacity_unit is optional — include when the user specifies a unit (e.g., "emails", "MBs").
@@ -195,9 +190,6 @@ Your goal is to create a precise execution plan to answer the user's question ab
 - **"capacity_at"**: Computes the accumulated capacity at a specific time instant from rate/quota objects.
   - **Use when:** The user asks "How many API calls in X days?" and provides rate/quota directly.
 
-- **"capacity_during"**: Computes capacity in a time window (not starting at t=0) from rate/quota objects.
-  - **Use when:** Evaluating a sliding window that does NOT start at t=0.
-
 - **"quota_exhaustion_threshold"**: Computes the minimum time to exhaust each quota at max rate.
   - **Use when:** "How fast can I blow through my quota?"
 
@@ -217,7 +209,6 @@ Use these when a datasheet is uploaded or referenced via URL.
 
 - **"datasheet_min_time"**: Min time to capacity goal from datasheet.
 - **"datasheet_capacity_at"**: Capacity at time T from datasheet.
-- **"datasheet_capacity_during"**: Capacity in a time window from datasheet.
 - **"datasheet_quota_exhaustion_threshold"**: Time to exhaust quotas from datasheet.
 - **"datasheet_idle_time_period"**: Idle time after quota exhaustion from datasheet.
 - **"datasheet_rates"**: Effective rates from datasheet.
@@ -299,7 +290,7 @@ Use these when the user wants to find the cheapest plan for a capacity goal.
 
 ### Planning Rules
 1. Analyse the user's intent.
-2. CRITICAL: If a datasheet or datasheet URL is present → ALWAYS use datasheet_* tools. This is non-negotiable. Never use standalone tools (limits, rates, quotas, min_time, capacity_at, capacity_during, quota_exhaustion_threshold, idle_time_period, capacity_curve_inflection) when any datasheet context exists.
+2. CRITICAL: If a datasheet or datasheet URL is present → ALWAYS use datasheet_* tools. This is non-negotiable. Never use standalone tools (limits, rates, quotas, min_time, capacity_at, quota_exhaustion_threshold, idle_time_period, capacity_curve_inflection) when any datasheet context exists.
 3. CRITICAL: If the user provides explicit rate AND/OR quota values and asks whether they are feasible/sustainable/compatible → ALWAYS use demand_evaluation as a SINGLE action. Map the rate to demands[].rate and the quota to demands[].quota. NEVER substitute this with separate datasheet_rates + datasheet_quotas calls — that approach does not answer the compatibility question, it only retrieves limits.
 4. If the user asks which plan is cheapest / fits a budget → use budget_recommendation or budget_recommendation_chart.
 5. If the user asks to visualise a chart → use the corresponding *_chart tool.
@@ -1769,11 +1760,6 @@ class HarveyAgent:
                 params["capacity_goal"] = entry["capacity_goal"]
             if name == "datasheet_capacity_at" and entry.get("time") is not None:
                 params["time"] = entry["time"]
-            if name == "datasheet_capacity_during":
-                if entry.get("end_instant") is not None:
-                    params["end_instant"] = entry["end_instant"]
-                if entry.get("start_instant") is not None:
-                    params["start_instant"] = entry["start_instant"]
             if name == "datasheet_capacity_curve_inflection" and entry.get("time_interval") is not None:
                 params["time_interval"] = entry["time_interval"]
             return PlannedAction(name=name, params=params)
@@ -1912,10 +1898,6 @@ class HarveyAgent:
             if action.name == "datasheet_capacity_at":
                 return await self._workflow.run_datasheet_capacity_at(
                     time=p.get("time", "0ms"), **common)
-            if action.name == "datasheet_capacity_during":
-                return await self._workflow.run_datasheet_capacity_during(
-                    end_instant=p.get("end_instant", "0ms"),
-                    start_instant=p.get("start_instant", "0ms"), **common)
             if action.name == "datasheet_quota_exhaustion_threshold":
                 return await self._workflow.run_datasheet_quota_exhaustion_threshold(**common)
             if action.name == "datasheet_idle_time_period":
@@ -1974,11 +1956,6 @@ class HarveyAgent:
         if action.name == "capacity_at":
             return await self._workflow.run_capacity_at(
                 time=p.get("time", "0ms"),
-                rate=p.get("rate"), quota=p.get("quota"))
-        if action.name == "capacity_during":
-            return await self._workflow.run_capacity_during(
-                end_instant=p.get("end_instant", "0ms"),
-                start_instant=p.get("start_instant", "0ms"),
                 rate=p.get("rate"), quota=p.get("quota"))
         if action.name == "quota_exhaustion_threshold":
             return await self._workflow.run_quota_exhaustion_threshold(

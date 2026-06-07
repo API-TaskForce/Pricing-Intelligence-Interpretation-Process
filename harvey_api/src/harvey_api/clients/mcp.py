@@ -130,24 +130,6 @@ class MCPWorkflowClient:
             arguments["quota"] = quota
         return await self._call_tool("capacity_at", arguments)
 
-    async def run_capacity_during(
-        self,
-        *,
-        end_instant: str,
-        start_instant: str = "0ms",
-        rate: Optional[Any] = None,
-        quota: Optional[Any] = None,
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "end_instant": end_instant,
-            "start_instant": start_instant,
-        }
-        if rate is not None:
-            arguments["rate"] = rate
-        if quota is not None:
-            arguments["quota"] = quota
-        return await self._call_tool("capacity_during", arguments)
-
     async def run_quota_exhaustion_threshold(
         self,
         *,
@@ -274,35 +256,6 @@ class MCPWorkflowClient:
         if capacity_request_factor is not None:
             arguments["capacity_request_factor"] = capacity_request_factor
         return await self._call_tool("datasheet_capacity_at", arguments)
-
-    async def run_datasheet_capacity_during(
-        self,
-        *,
-        datasheet_source: str,
-        end_instant: str,
-        start_instant: str = "0ms",
-        plan_name: Optional[str] = None,
-        endpoint_path: Optional[str] = None,
-        alias: Optional[str] = None,
-        capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[Any] = None,
-    ) -> Dict[str, Any]:
-        arguments: Dict[str, Any] = {
-            "datasheet_source": datasheet_source,
-            "end_instant": end_instant,
-            "start_instant": start_instant,
-        }
-        if plan_name is not None:
-            arguments["plan_name"] = plan_name
-        if endpoint_path is not None:
-            arguments["endpoint_path"] = endpoint_path
-        if alias is not None:
-            arguments["alias"] = alias
-        if capacity_unit is not None:
-            arguments["capacity_unit"] = capacity_unit
-        if capacity_request_factor is not None:
-            arguments["capacity_request_factor"] = capacity_request_factor
-        return await self._call_tool("datasheet_capacity_during", arguments)
 
     async def run_datasheet_quota_exhaustion_threshold(
         self,

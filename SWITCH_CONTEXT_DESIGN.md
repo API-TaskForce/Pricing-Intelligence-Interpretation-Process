@@ -10,7 +10,7 @@
 Harvey (H.A.R.V.E.Y.) recibía en cada llamada un prompt de planning que describía **todas** las herramientas disponibles:
 
 - **5 herramientas SaaS** (`subscriptions`, `optimal`, `summary`, `iPricing`, `validate`)
-- **9 herramientas API** (`min_time`, `capacity_at`, `capacity_during`, `quota_exhaustion_threshold`, `rates`, `quotas`, `limits`, `idle_time_period`, `evaluate_api_datasheet`)
+- **8 herramientas API** (`min_time`, `capacity_at`, `quota_exhaustion_threshold`, `rates`, `quotas`, `limits`, `idle_time_period`, `evaluate_api_datasheet`)
 
 Esto presentaba dos problemas claros:
 

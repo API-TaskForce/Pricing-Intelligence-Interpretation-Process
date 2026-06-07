@@ -69,29 +69,6 @@ async def capacity_at(
 
 
 @mcp.tool()
-async def capacity_during(
-    end_instant: str,
-    rate: Optional[Any] = None,
-    quota: Optional[Any] = None,
-    start_instant: str = "0ms",
-    provider_mode: bool = True,
-) -> Dict[str, Any]:
-    """Compute the capacity generated during a defined time interval.
-
-    Either rate, quota, or both must be provided.
-    Rate / Quota shape: {"value": int, "unit": str, "period": str}
-    provider_mode: if True (default), capacity is counted at the end of each window (provider semantics).
-    Returns: {"start_instant": str, "end_instant": str, "capacity": number}
-    """
-    logger.info(TOOL_INVOKED, tool="capacity_during", end_instant=end_instant, start_instant=start_instant)
-    result = await container.prime4api_client.capacity_during(
-        end_instant=end_instant, rate=rate, quota=quota, start_instant=start_instant, provider_mode=provider_mode,
-    )
-    logger.info(TOOL_COMPLETED, tool="capacity_during", capacity=result.get("capacity"))
-    return result
-
-
-@mcp.tool()
 async def quota_exhaustion_threshold(
     rate: Optional[Any] = None,
     quota: Optional[Any] = None,
@@ -253,36 +230,6 @@ async def datasheet_capacity_at(
         capacity_request_factor=capacity_request_factor, provider_mode=provider_mode,
     )
     logger.info(TOOL_COMPLETED, tool="datasheet_capacity_at")
-    return result
-
-
-@mcp.tool()
-async def datasheet_capacity_during(
-    datasheet_source: str,
-    end_instant: str,
-    plan_name: Optional[str] = None,
-    endpoint_path: Optional[str] = None,
-    alias: Optional[str] = None,
-    start_instant: str = "0ms",
-    capacity_unit: Optional[str] = None,
-    capacity_request_factor: Optional[Union[float, str]] = None,
-    provider_mode: bool = True,
-) -> Dict[str, Any]:
-    """Calculate capacity generated in a time window using a datasheet.
-
-    datasheet_source: uploaded alias or HTTP URL.
-    provider_mode: if True (default), provider-centric semantics.
-    Returns results grouped by plan/endpoint/dimension.
-    """
-    logger.info(TOOL_INVOKED, tool="datasheet_capacity_during", end_instant=end_instant,
-                start_instant=start_instant, plan_name=plan_name)
-    result = await container.prime4api_client.datasheet_capacity_during(
-        datasheet_source=datasheet_source, end_instant=end_instant, plan_name=plan_name,
-        endpoint_path=endpoint_path, alias=alias, start_instant=start_instant,
-        capacity_unit=capacity_unit, capacity_request_factor=capacity_request_factor,
-        provider_mode=provider_mode,
-    )
-    logger.info(TOOL_COMPLETED, tool="datasheet_capacity_during")
     return result
 
 

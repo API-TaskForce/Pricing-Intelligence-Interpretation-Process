@@ -134,27 +134,6 @@ class Prime4APIClient:
             body["quota"] = _normalise_limit_payload(quota)
         return await self._post(url, body, params={"time": time, "provider_mode": provider_mode}, log_name="capacity_at")
 
-    async def capacity_during(
-        self,
-        end_instant: str,
-        rate: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-        quota: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
-        start_instant: str = "0ms",
-        provider_mode: bool = True,
-    ) -> Dict[str, Any]:
-        """POST /api/v1/bounded-rate/capacity-during?end_instant=<e>&start_instant=<s>"""
-        url = f"{self._base_url}/api/v1/bounded-rate/capacity-during"
-        body: Dict[str, Any] = {}
-        if rate is not None:
-            body["rate"] = _normalise_limit_payload(rate)
-        if quota is not None:
-            body["quota"] = _normalise_limit_payload(quota)
-        return await self._post(
-            url, body,
-            params={"end_instant": end_instant, "start_instant": start_instant, "provider_mode": provider_mode},
-            log_name="capacity_during",
-        )
-
     async def quota_exhaustion_threshold(
         self,
         rate: Optional[Union[Dict[str, Any], List[Dict[str, Any]]]] = None,
@@ -296,29 +275,6 @@ class Prime4APIClient:
             params["capacity_request_factor"] = json.dumps(capacity_request_factor) if isinstance(capacity_request_factor, dict) else capacity_request_factor
         return await self._post(url=f"{self._base_url}/api/v1/datasheet/capacity-at", body=body,
                                 params=params, log_name="datasheet_capacity_at")
-
-    async def datasheet_capacity_during(
-        self,
-        datasheet_source: str,
-        end_instant: str,
-        plan_name: Optional[str] = None,
-        endpoint_path: Optional[str] = None,
-        alias: Optional[str] = None,
-        start_instant: str = "0ms",
-        capacity_unit: Optional[str] = None,
-        capacity_request_factor: Optional[Union[float, str]] = None,
-        provider_mode: bool = True,
-    ) -> Dict[str, Any]:
-        """POST /api/v1/datasheet/capacity-during"""
-        body = self._build_datasheet_body(datasheet_source=datasheet_source, plan_name=plan_name,
-                                          endpoint_path=endpoint_path, alias=alias)
-        params: Dict[str, Any] = {"end_instant": end_instant, "start_instant": start_instant, "provider_mode": provider_mode}
-        if capacity_unit is not None:
-            params["capacity_unit"] = capacity_unit
-        if capacity_request_factor is not None:
-            params["capacity_request_factor"] = json.dumps(capacity_request_factor) if isinstance(capacity_request_factor, dict) else capacity_request_factor
-        return await self._post(url=f"{self._base_url}/api/v1/datasheet/capacity-during", body=body,
-                                params=params, log_name="datasheet_capacity_during")
 
     async def datasheet_quota_exhaustion_threshold(
         self,
