@@ -47,6 +47,7 @@ class ChatResponse(BaseModel):
     answer: str
     plan: Dict[str, Any]
     result: Dict[str, Any]
+    usage: Optional[Dict[str, int]] = None
 
 
 def get_file_manager():
@@ -105,6 +106,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         answer=response_payload["answer"],
         plan=response_payload["plan"],
         result=response_payload["result"],
+        usage=response_payload.get("usage"),
     )
 
 

@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Dict, List
 
 from openai import (
@@ -19,6 +19,18 @@ from openai import OpenAI
 logger = logging.getLogger(__name__)
 
 ChatMessage = Dict[str, str]
+
+
+@dataclass
+class LLMUsage:
+    input_tokens: int = field(default=0)
+    output_tokens: int = field(default=0)
+
+    def __add__(self, other: "LLMUsage") -> "LLMUsage":
+        return LLMUsage(
+            input_tokens=self.input_tokens + other.input_tokens,
+            output_tokens=self.output_tokens + other.output_tokens,
+        )
 
 
 @dataclass
@@ -43,7 +55,7 @@ class OpenAIClient:
         messages: List[ChatMessage],
         *,
         json_output: bool = True,
-    ) -> str:
+    ) -> tuple[str, LLMUsage]:
         total_length = sum(len(m.get("content", "")) for m in messages)
         last_user = next(
             (m["content"] for m in reversed(messages) if m.get("role") == "user"), ""
@@ -57,7 +69,7 @@ class OpenAIClient:
         )
 
         try:
-            raw_response, finish_reason = self._send_prompt(messages, self._config.model)
+            raw_response, finish_reason, usage = self._send_prompt(messages, self._config.model)
         except RateLimitError as exc:
             logger.error("harvey.llm.rate_limit_failure model=%s", self._config.model)
             raise RuntimeError("LLM rate limit reached. Please retry shortly.") from exc
@@ -87,7 +99,7 @@ class OpenAIClient:
                 len(parsed),
                 self._truncate_for_log(parsed),
             )
-            return parsed
+            return parsed, usage
 
         logger.info(
             "harvey.llm.complete model=%s text_length=%d text_preview=%s",
@@ -95,9 +107,9 @@ class OpenAIClient:
             len(cleaned_response),
             self._truncate_for_log(cleaned_response),
         )
-        return cleaned_response
+        return cleaned_response, usage
 
-    def _send_prompt(self, messages: List[ChatMessage], model: str) -> tuple[str, str]:
+    def _send_prompt(self, messages: List[ChatMessage], model: str) -> tuple[str, str, LLMUsage]:
         delay = max(self._config.api_retry_backoff, 0.5)
         max_delay = max(self._config.api_retry_backoff_max, delay)
         multiplier = max(self._config.api_retry_multiplier, 1.0)
@@ -111,8 +123,15 @@ class OpenAIClient:
                 message = completion.choices[0].message
                 content = message.content or ""
                 finish_reason = completion.choices[0].finish_reason or ""
+                usage = LLMUsage()
+                if hasattr(completion, "usage") and completion.usage:
+                    u = completion.usage
+                    usage = LLMUsage(
+                        input_tokens=getattr(u, "prompt_tokens", 0) or 0,
+                        output_tokens=getattr(u, "completion_tokens", 0) or 0,
+                    )
                 self._log_completion_message(completion, message, content, finish_reason)
-                return content, finish_reason
+                return content, finish_reason, usage
             except (RateLimitError, APITimeoutError, APIConnectionError) as exc:
                 delay = self._handle_api_retry(
                     model=model,

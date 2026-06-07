@@ -400,6 +400,36 @@ main {
   border-bottom: 1px solid rgba(148, 163, 184, 0.2);
 }
 
+.message-header-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.token-badge {
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  padding: 0.1rem 0.45rem;
+  border-radius: 9999px;
+  opacity: 0.85;
+}
+
+.token-badge-input {
+  background: rgba(99, 102, 241, 0.15);
+  color: #818cf8;
+}
+
+.message-user .token-badge-input {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.token-badge-output {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+}
+
 .message-user header {
   color: rgba(255, 255, 255, 0.9);
   border-bottom-color: rgba(255, 255, 255, 0.2);

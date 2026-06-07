@@ -14,6 +14,7 @@ from .config import get_settings
 from .logging import get_logger
 from .llm_client import (
     ChatMessage,
+    LLMUsage,
     OpenAIClientConfig,
     OpenAIClient,
 )
@@ -457,7 +458,7 @@ class HarveyAgent:
         datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
         provided_urls = [url for url in (datasheet_urls or []) if url]
 
-        plan = await self._generate_plan(
+        plan, plan_usage = await self._generate_plan(
             question,
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=provided_urls,
@@ -500,12 +501,18 @@ class HarveyAgent:
         )
 
         payload_for_answer, result_payload = self._compose_results_payload(actions, results, last_payload)
-        answer = await self._generate_answer(
+        answer, answer_usage = await self._generate_answer(
             question, plan, payload_for_answer, datasheet_alias_map,
             datasheet_urls=provided_urls, history=history,
         )
 
-        return {"plan": plan, "result": result_payload, "answer": answer}
+        total_usage = plan_usage + answer_usage
+        return {
+            "plan": plan,
+            "result": result_payload,
+            "answer": answer,
+            "usage": {"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
+        }
 
     # ------------------------------------------------------------------
     # Plan generation
@@ -517,7 +524,7 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
-    ) -> Dict[str, Any]:
+    ) -> tuple[Dict[str, Any], LLMUsage]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
@@ -526,6 +533,7 @@ class HarveyAgent:
         )
 
         attempt_errors: List[str] = []
+        total_usage = LLMUsage()
         for _ in range(PLAN_REQUEST_MAX_ATTEMPTS):
             attempt_messages: List[ChatMessage] = list(messages)
             if attempt_errors:
@@ -538,11 +546,12 @@ class HarveyAgent:
                 })
 
             try:
-                text = await asyncio.to_thread(
+                text, usage = await asyncio.to_thread(
                     self._llm.make_full_request,
                     attempt_messages,
                     json_output=True,
                 )
+                total_usage = total_usage + usage
             except ValueError as exc:
                 attempt_errors.append(f"LLM response was not valid JSON: {exc}")
                 continue
@@ -553,7 +562,7 @@ class HarveyAgent:
                 attempt_errors.append(str(exc))
                 continue
 
-            return self._normalise_plan(plan)
+            return self._normalise_plan(plan), total_usage
 
         raise ValueError(
             "Failed to obtain a valid planning response. "
@@ -669,7 +678,7 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
-    ) -> str:
+    ) -> tuple[str, LLMUsage]:
         system_parts = [ANSWER_PROMPT]
         if plan.get("response_mode") == "clarify":
             system_parts.append(ANSWER_CLARIFICATION_PROMPT)
@@ -701,12 +710,12 @@ class HarveyAgent:
 
         messages.append({"role": "user", "content": "\n\n".join(user_parts)})
 
-        response = await asyncio.to_thread(
+        response, usage = await asyncio.to_thread(
             self._llm.make_full_request,
             messages,
             json_output=False,
         )
-        return response or "No answer could be generated."
+        return response or "No answer could be generated.", usage
 
     # ------------------------------------------------------------------
     # Clarify mode

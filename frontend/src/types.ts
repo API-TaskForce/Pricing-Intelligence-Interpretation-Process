@@ -8,6 +8,10 @@ export interface ChatMessage {
   metadata?: {
     plan?: Record<string, unknown>;
     result?: Record<string, unknown>;
+    usage?: {
+      inputTokens?: number;
+      outputTokens?: number;
+    };
   };
 }
 
