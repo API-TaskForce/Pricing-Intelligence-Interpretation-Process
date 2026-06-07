@@ -5,6 +5,13 @@ export interface ChatMessage {
   role: ChatRole;
   content: string;
   createdAt: string;
+  chartHtml?: string;
+  // A chart could be produced for this answer but was not generated yet (ask mode).
+  chartAvailable?: boolean;
+  // Request to re-run (with force_chart) to actually generate the chart on demand.
+  pendingChartRequest?: ChatRequest;
+  // The on-demand generation ran but produced no chart.
+  chartError?: boolean;
   metadata?: {
     plan?: Record<string, unknown>;
     result?: Record<string, unknown>;
@@ -81,4 +88,5 @@ export type ChatRequest = {
   datasheet_yaml?: string;
   datasheet_yamls?: string[];
   history?: Array<{ role: string; content: string }>;
+  force_chart?: boolean;
 };

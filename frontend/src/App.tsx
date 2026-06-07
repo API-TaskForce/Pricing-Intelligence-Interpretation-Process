@@ -5,6 +5,7 @@ import ChatTranscript from "./components/ChatTranscript";
 import ControlPanel from "./components/ControlPanel";
 import type {
   ChatMessage,
+  ChatRequest,
   PricingContextItem,
   PromptPreset,
   ContextInputType,
@@ -16,6 +17,7 @@ import {
   buildChatRequest,
   deleteYamlPricing,
   uploadYamlPricing,
+  extractChartHtml,
 } from "./utils";
 import { PricingContext } from "./context/pricingContext";
 
@@ -29,12 +31,23 @@ const initTheme = (): ThemeType => {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 };
 
+const initAlwaysCharts = (): boolean => {
+  if (typeof window === "undefined") return false;
+  return window.localStorage.getItem("pricing-always-charts") === "true";
+};
+
 function App() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [question, setQuestion] = useState("");
   const [contextItems, setContextItems] = useState<PricingContextItem[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [theme, setTheme] = useState<ThemeType>(() => initTheme());
+  const [alwaysShowCharts, setAlwaysShowCharts] = useState<boolean>(() =>
+    initAlwaysCharts()
+  );
+  const [generatingChartIds, setGeneratingChartIds] = useState<Set<string>>(
+    new Set()
+  );
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -42,6 +55,15 @@ function App() {
       window.localStorage.setItem("pricing-theme", theme);
     }
   }, [theme]);
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(
+        "pricing-always-charts",
+        String(alwaysShowCharts)
+      );
+    }
+  }, [alwaysShowCharts]);
 
   const isSubmitDisabled = useMemo(
     () => isLoading || !question.trim(),
@@ -204,12 +226,21 @@ function App() {
     setIsLoading(true);
 
     try {
-      const requestBody = buildChatRequest(
+      // Base request (ask mode). With the toggle on we force the chart up front;
+      // with it off the backend suppresses the chart for speed and only reports
+      // that one is available, so the UI can ask before generating it.
+      const baseRequest = buildChatRequest(
         trimmedQuestion,
         getUniqueYamls(),
         messages.map((m) => ({ role: m.role, content: m.content }))
       );
+      const requestBody: ChatRequest = alwaysShowCharts
+        ? { ...baseRequest, force_chart: true }
+        : baseRequest;
       const data = await chatWithAgent(requestBody);
+
+      const chartHtml = extractChartHtml(data?.result);
+      const chartAvailable = data?.chart_available === true;
 
       setMessages((prev) => [
         ...prev.map((m) =>
@@ -222,6 +253,10 @@ function App() {
           role: "assistant",
           content: data.answer ?? "No response available.",
           createdAt: new Date().toISOString(),
+          chartHtml,
+          // Only relevant in ask mode (no chart generated yet, but one is possible).
+          chartAvailable: !chartHtml && chartAvailable,
+          pendingChartRequest: { ...baseRequest, force_chart: true },
           metadata: {
             plan: data.plan ?? undefined,
             result: data.result ?? undefined,
@@ -244,6 +279,45 @@ function App() {
     }
   };
 
+  // Ask mode: the user confirmed they want the chart, so re-run the same request
+  // with force_chart to actually call the tool and attach the chart HTML.
+  const handleGenerateChart = async (messageId: string) => {
+    const target = messages.find((m) => m.id === messageId);
+    if (!target?.pendingChartRequest) return;
+    if (generatingChartIds.has(messageId)) return;
+
+    setGeneratingChartIds((prev) => new Set(prev).add(messageId));
+    try {
+      const data = await chatWithAgent(target.pendingChartRequest);
+      const chartHtml = extractChartHtml(data?.result);
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId
+            ? {
+                ...m,
+                chartHtml,
+                chartAvailable: false,
+                chartError: !chartHtml,
+              }
+            : m
+        )
+      );
+    } catch (error) {
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.id === messageId ? { ...m, chartAvailable: false, chartError: true } : m
+        )
+      );
+      console.error("Chart generation failed", error);
+    } finally {
+      setGeneratingChartIds((prev) => {
+        const next = new Set(prev);
+        next.delete(messageId);
+        return next;
+      });
+    }
+  };
+
   return (
     <PricingContext.Provider value={contextItems}>
       <ThemeContext.Provider value={theme}>
@@ -258,6 +332,19 @@ function App() {
               </p>
             </div>
             <div className="header-actions">
+              <button
+                type="button"
+                className="chart-pref-toggle"
+                onClick={() => setAlwaysShowCharts((previous) => !previous)}
+                aria-pressed={alwaysShowCharts}
+                title={
+                  alwaysShowCharts
+                    ? "Las gráficas se generan y muestran automáticamente. Pulsa para que se te pregunte antes."
+                    : "Se te preguntará antes de mostrar una gráfica. Pulsa para incluirlas siempre que sea posible."
+                }
+              >
+                {alwaysShowCharts ? "📊 Gráficas: siempre" : "📊 Gráficas: preguntar"}
+              </button>
               <button
                 type="button"
                 className="session-reset"
@@ -281,6 +368,8 @@ function App() {
               <ChatTranscript
                 messages={messages}
                 isLoading={isLoading}
+                generatingChartIds={generatingChartIds}
+                onGenerateChart={handleGenerateChart}
                 promptPresets={PROMPT_PRESETS}
                 onPresetSelect={handlePromptSelect}
               />

@@ -1801,3 +1801,242 @@ button.context-add-url {
     padding: 0.35rem 0.5rem;
   }
 }
+
+/* Capacity curve chart — open button + modal */
+.chart-open-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+  padding: 0.55rem 1.1rem;
+  background: var(--accent-color, #667eea);
+  color: #fff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.chart-open-btn:hover {
+  opacity: 0.85;
+}
+
+.chart-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+}
+
+.chart-modal {
+  position: relative;
+  width: 92vw;
+  height: 88vh;
+  background: var(--card-bg);
+  border-radius: 0.75rem;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  box-shadow: var(--card-shadow);
+}
+
+.chart-modal-close {
+  position: absolute;
+  top: 0.6rem;
+  right: 0.75rem;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  border: none;
+  border-radius: 50%;
+  width: 2rem;
+  height: 2rem;
+  font-size: 1rem;
+  cursor: pointer;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
+.chart-modal-close:hover {
+  background: rgba(0, 0, 0, 0.8);
+}
+
+.chart-modal-iframe {
+  width: 100%;
+  flex: 1;
+  border: none;
+}
+
+.chart-pref-toggle {
+  align-self: flex-start;
+  padding: 0.65rem 1.4rem;
+  border-radius: 999px;
+  border: 1px solid var(--card-border);
+  background: var(--card-bg);
+  color: var(--text-primary);
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+}
+
+.chart-pref-toggle:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent-color);
+}
+
+.chart-pref-toggle[aria-pressed='true'] {
+  background: var(--accent-color, #667eea);
+  color: #fff;
+  border-color: transparent;
+}
+
+.chart-inline {
+  margin-top: 0.75rem;
+  border: 1px solid var(--card-border);
+  border-radius: 0.6rem;
+  overflow: hidden;
+  background: var(--card-bg);
+}
+
+.chart-inline-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.45rem 0.7rem;
+  border-bottom: 1px solid var(--card-border);
+}
+
+.chart-inline-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.chart-expand-btn {
+  padding: 0.3rem 0.7rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 0.4rem;
+  color: var(--text-primary);
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart-expand-btn:hover {
+  border-color: var(--accent-color);
+}
+
+.chart-inline-iframe {
+  width: 100%;
+  height: 480px;
+  border: none;
+  display: block;
+}
+
+.chart-ask {
+  margin-top: 0.75rem;
+  padding: 0.75rem 1rem;
+  border: 1px dashed var(--card-border);
+  border-radius: 0.6rem;
+  background: rgba(102, 126, 234, 0.06);
+}
+
+.chart-ask-text {
+  display: block;
+  font-size: 0.9rem;
+  color: var(--text-primary);
+  margin-bottom: 0.6rem;
+}
+
+.chart-ask-actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.chart-ask-actions .chart-open-btn {
+  margin-top: 0;
+}
+
+.chart-dismiss-btn {
+  padding: 0.55rem 1.1rem;
+  background: transparent;
+  border: 1px solid var(--card-border);
+  border-radius: 0.5rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.chart-dismiss-btn:hover {
+  color: var(--text-primary);
+  border-color: var(--accent-color);
+}
+
+.chart-generating {
+  margin-top: 0.75rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.chart-spinner {
+  width: 1rem;
+  height: 1rem;
+  border: 2px solid var(--card-border);
+  border-top-color: var(--accent-color, #667eea);
+  border-radius: 50%;
+  flex-shrink: 0;
+  animation: chart-spin 0.7s linear infinite;
+}
+
+@keyframes chart-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.chart-dots span {
+  opacity: 0;
+  animation: chart-dot-blink 1.4s infinite both;
+}
+
+.chart-dots span:nth-child(2) {
+  animation-delay: 0.2s;
+}
+
+.chart-dots span:nth-child(3) {
+  animation-delay: 0.4s;
+}
+
+@keyframes chart-dot-blink {
+  0%,
+  80%,
+  100% {
+    opacity: 0;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.chart-error {
+  margin-top: 0.75rem;
+  color: var(--danger-color, #ef4444);
+}

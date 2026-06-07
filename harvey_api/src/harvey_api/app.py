@@ -41,12 +41,14 @@ class ChatRequest(BaseModel):
     datasheet_url: Optional[str] = None
     datasheet_urls: Optional[List[str]] = None
     history: Optional[List[Dict[str, str]]] = None
+    force_chart: bool = False
 
 
 class ChatResponse(BaseModel):
     answer: str
     plan: Dict[str, Any]
     result: Dict[str, Any]
+    chart_available: bool = False
     usage: Optional[Dict[str, int]] = None
 
 
@@ -94,6 +96,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
             datasheet_contents=yaml_contents or None,
             datasheet_urls=url_list or None,
             history=request.history,
+            force_chart=request.force_chart,
         )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
@@ -106,6 +109,7 @@ async def chat(request: ChatRequest) -> ChatResponse:
         answer=response_payload["answer"],
         plan=response_payload["plan"],
         result=response_payload["result"],
+        chart_available=bool(response_payload.get("chart_available", False)),
         usage=response_payload.get("usage"),
     )
 

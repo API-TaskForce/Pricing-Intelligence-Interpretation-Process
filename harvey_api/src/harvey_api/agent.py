@@ -85,6 +85,51 @@ STANDALONE_TO_DATASHEET: Dict[str, str] = {
     "capacity_curve_inflection": "datasheet_capacity_curve_inflection",
 }
 
+# Base actions whose chart-producing variant should be used when the caller
+# requests that every answer include a visualisation (force_chart). The chart
+# variants accept the same params (chart-only extras default safely), so a plain
+# rename is enough. capacity_curve_inflection / datasheet_capacity_curve_inflection
+# already produce charts and need no remapping.
+TO_CHART_VARIANT: Dict[str, str] = {
+    "budget_recommendation": "budget_recommendation_chart",
+    "demand_evaluation": "demand_evaluation_chart",
+}
+
+# Reverse of TO_CHART_VARIANT plus the chart-only tools: used to "suppress" chart
+# generation in ask mode so the text answer returns fast.
+CHART_TO_BASE: Dict[str, str] = {
+    "budget_recommendation_chart": "budget_recommendation",
+    "demand_evaluation_chart": "demand_evaluation",
+}
+
+# Chart-only tools that have no text-producing counterpart. In ask mode they are
+# dropped from execution entirely (regenerated later if the user confirms).
+CHART_ONLY_ACTIONS: Set[str] = {
+    "capacity_curve_inflection",
+    "datasheet_capacity_curve_inflection",
+}
+
+# Every action from which a chart could be produced: directly, by upgrading to a
+# *_chart variant, or by deriving an inflection capacity-curve from its rate/quota
+# (any BoundedRate action) or datasheet params. Drives the "a chart is available"
+# signal for the UI and what force_chart can visualise. NAV actions are excluded.
+CHART_CAPABLE_ACTIONS: Set[str] = (
+    CHART_ONLY_ACTIONS
+    | set(TO_CHART_VARIANT.keys())
+    | set(TO_CHART_VARIANT.values())
+    | RATE_QUOTA_ACTIONS
+    | DATASHEET_ACTIONS
+)
+
+FORCE_CHART_INSTRUCTION = (
+    "CHART PREFERENCE (user setting enabled): The user wants every answer to include a "
+    "visualisation whenever one is possible. Whenever the action you choose has a chart "
+    "variant, you MUST use that variant: budget_recommendation_chart instead of "
+    "budget_recommendation, demand_evaluation_chart instead of demand_evaluation, and "
+    "capacity_curve_inflection / datasheet_capacity_curve_inflection for capacity-curve "
+    "questions. Never answer in plain text when a *_chart tool can satisfy the question."
+)
+
 # ── Prompts ───────────────────────────────────────────────────────────────────
 
 PLAN_RESPONSE_FORMAT_INSTRUCTIONS = """Respond with a single JSON object:
@@ -444,6 +489,7 @@ class HarveyAgent:
         datasheet_contents: Optional[List[str]] = None,
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
     ) -> Dict[str, Any]:
         provided_datasheets = [content for content in (datasheet_contents or []) if content]
         datasheet_alias_map = self._build_datasheet_alias_map(provided_datasheets)
@@ -454,6 +500,7 @@ class HarveyAgent:
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=provided_urls,
             history=history,
+            force_chart=force_chart,
         )
 
         plan = self._apply_clarification_fallback(
@@ -486,6 +533,34 @@ class HarveyAgent:
                 datasheet_urls=provided_urls,
             )
 
+        # Whether a chart could be produced for this question (independent of
+        # whether we actually generate it now). Used by the UI to offer "generate
+        # a chart?" in ask mode.
+        chart_available = any(a.name in CHART_CAPABLE_ACTIONS for a in actions)
+
+        # Did the user explicitly ask to visualise? The planner only picks a
+        # chart tool (capacity_curve_inflection / *_chart) when the question asks
+        # for a graph. In that case we never ask again — generate it now.
+        explicit_chart_request = any(
+            a.name in CHART_ONLY_ACTIONS or a.name in set(TO_CHART_VARIANT.values())
+            for a in actions
+        )
+
+        if force_chart or explicit_chart_request:
+            # Generate the chart now: upgrade budget/demand to their chart variant,
+            # and add an inflection capacity-curve for BoundedRate/datasheet
+            # capacity questions that have no chart of their own.
+            actions = self._remap_to_chart(actions)
+            actions = self._ensure_capacity_curve(
+                actions, has_datasheet=bool(datasheet_alias_map or provided_urls)
+            )
+        else:
+            # "Ask" mode and no explicit chart request: do NOT spend time
+            # generating a chart — suppress chart tools so the text answer comes
+            # back fast. The UI asks first and re-requests with force_chart=true
+            # only if the user confirms.
+            actions = self._suppress_charts(actions)
+
         results, last_payload = await self._execute_actions(
             actions=actions,
             datasheet_alias_map=datasheet_alias_map,
@@ -502,6 +577,7 @@ class HarveyAgent:
             "plan": plan,
             "result": result_payload,
             "answer": answer,
+            "chart_available": chart_available,
             "usage": {"input_tokens": total_usage.input_tokens, "output_tokens": total_usage.output_tokens},
         }
 
@@ -515,12 +591,15 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
+    ) -> Dict[str, Any]:
     ) -> tuple[Dict[str, Any], LLMUsage]:
         messages = self._build_plan_request_messages(
             question=question,
             datasheet_alias_map=datasheet_alias_map,
             datasheet_urls=datasheet_urls,
             history=history,
+            force_chart=force_chart,
         )
 
         attempt_errors: List[str] = []
@@ -567,9 +646,12 @@ class HarveyAgent:
         datasheet_alias_map: Dict[str, str],
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
+        force_chart: bool = False,
     ) -> List[ChatMessage]:
         has_datasheet = bool(datasheet_alias_map or datasheet_urls)
         system_parts = [PLAN_PROMPT, PLAN_RESPONSE_FORMAT_INSTRUCTIONS]
+        if force_chart:
+            system_parts.append(FORCE_CHART_INSTRUCTION)
         if has_datasheet:
             system_parts.append(PLAN_CLARIFICATION_FORMAT_INSTRUCTIONS)
         if has_datasheet:
@@ -1704,6 +1786,106 @@ class HarveyAgent:
                     new_params[key] = old_params[key]
             remapped.append(PlannedAction(name=new_name, params=new_params))
         return remapped
+
+    def _remap_to_chart(self, actions: List[PlannedAction]) -> List[PlannedAction]:
+        """Swap base actions for their chart-producing variant (force_chart mode)."""
+        remapped: List[PlannedAction] = []
+        for action in actions:
+            new_name = TO_CHART_VARIANT.get(action.name)
+            if new_name is None:
+                remapped.append(action)
+                continue
+            logger.info(
+                "harvey.agent.force_chart_remap",
+                from_tool=action.name,
+                to_tool=new_name,
+            )
+            remapped.append(PlannedAction(name=new_name, params=action.params))
+        return remapped
+
+    def _ensure_capacity_curve(
+        self, actions: List[PlannedAction], *, has_datasheet: bool
+    ) -> List[PlannedAction]:
+        """force_chart mode: if no chart action is present but a capacity/consumption
+        action is (any BoundedRate or datasheet calc action), append an inflection
+        capacity-curve chart derived from its rate/quota (or datasheet params). The
+        original action is kept so the text answer (e.g. the consumption time) stays."""
+        chart_present = any(
+            a.name in CHART_ONLY_ACTIONS or a.name in set(TO_CHART_VARIANT.values())
+            for a in actions
+        )
+        if chart_present:
+            return actions
+
+        if has_datasheet:
+            ds_actions = [
+                a for a in actions
+                if a.name in DATASHEET_ACTIONS and (a.params or {}).get("datasheet_source")
+            ]
+            if not ds_actions:
+                return actions
+            first = ds_actions[0]
+            p = first.params or {}
+            new_params: Dict[str, Any] = {
+                "datasheet_source": p["datasheet_source"],
+                "time_interval": p.get("time_interval", "1day"),
+            }
+            if p.get("capacity_unit") is not None:
+                new_params["capacity_unit"] = p["capacity_unit"]
+            if p.get("capacity_request_factor") is not None:
+                new_params["capacity_request_factor"] = p["capacity_request_factor"]
+            # Several datasheet actions (e.g. one per plan) means a multi-plan
+            # question → chart ALL plans by leaving plan_name/endpoint unset. A
+            # single action keeps its plan/endpoint scope.
+            if len(ds_actions) == 1:
+                for key in ("plan_name", "endpoint_path", "alias"):
+                    if p.get(key) is not None:
+                        new_params[key] = p[key]
+            logger.info(
+                "harvey.agent.add_capacity_curve",
+                variant="datasheet",
+                source_tool=first.name,
+                datasheet_actions=len(ds_actions),
+            )
+            return actions + [
+                PlannedAction(name="datasheet_capacity_curve_inflection", params=new_params)
+            ]
+
+        for a in actions:
+            if a.name not in RATE_QUOTA_ACTIONS:
+                continue
+            p = a.params or {}
+            if p.get("rate") is None and p.get("quota") is None:
+                continue
+            new_params = {"time_interval": p.get("time_interval", "1day")}
+            if p.get("rate") is not None:
+                new_params["rate"] = p["rate"]
+            if p.get("quota") is not None:
+                new_params["quota"] = p["quota"]
+            logger.info("harvey.agent.add_capacity_curve", variant="standalone", source_tool=a.name)
+            return actions + [PlannedAction(name="capacity_curve_inflection", params=new_params)]
+        return actions
+
+    def _suppress_charts(self, actions: List[PlannedAction]) -> List[PlannedAction]:
+        """Ask mode: avoid generating charts. Downgrade *_chart tools to their text
+        variant and drop chart-only tools so the answer returns fast. The chart is
+        (re)generated later via force_chart only if the user confirms."""
+        suppressed: List[PlannedAction] = []
+        for action in actions:
+            if action.name in CHART_ONLY_ACTIONS:
+                logger.info("harvey.agent.suppress_chart_drop", tool=action.name)
+                continue
+            base = CHART_TO_BASE.get(action.name)
+            if base is not None:
+                logger.info(
+                    "harvey.agent.suppress_chart_downgrade",
+                    from_tool=action.name,
+                    to_tool=base,
+                )
+                suppressed.append(PlannedAction(name=base, params=action.params))
+            else:
+                suppressed.append(action)
+        return suppressed
 
     def _normalize_actions(self, raw_actions: Any) -> List[PlannedAction]:
         if not isinstance(raw_actions, list):

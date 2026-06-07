@@ -52,7 +52,8 @@ export async function deleteYamlPricing(filename: string): Promise<void> {
 export function buildChatRequest(
   question: string,
   yamls: string[],
-  history: Array<{ role: string; content: string }> = []
+  history: Array<{ role: string; content: string }> = [],
+  forceChart = false
 ): ChatRequest {
   const request: ChatRequest = { question };
   if (yamls.length === 1) {
@@ -63,7 +64,28 @@ export function buildChatRequest(
   if (history.length > 0) {
     request.history = history;
   }
+  if (forceChart) {
+    request.force_chart = true;
+  }
   return request;
+}
+
+// Chart HTML may sit at result.payload.html (single action) or inside
+// result.steps[].payload.html (multi-action, e.g. min_time + capacity curve).
+export function extractChartHtml(result: unknown): string | undefined {
+  const isChartHtml = (v: unknown): v is string =>
+    typeof v === "string" && v.trim().startsWith("<");
+
+  if (!result || typeof result !== "object") return undefined;
+  const r = result as { payload?: { html?: unknown }; steps?: Array<{ payload?: { html?: unknown } }> };
+
+  if (isChartHtml(r.payload?.html)) return r.payload!.html as string;
+  if (Array.isArray(r.steps)) {
+    for (const step of r.steps) {
+      if (isChartHtml(step?.payload?.html)) return step!.payload!.html as string;
+    }
+  }
+  return undefined;
 }
 
 export async function chatWithAgent(body: ChatRequest) {
