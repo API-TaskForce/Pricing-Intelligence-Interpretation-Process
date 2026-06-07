@@ -592,7 +592,6 @@ class HarveyAgent:
         datasheet_urls: Optional[List[str]] = None,
         history: Optional[List[Dict[str, str]]] = None,
         force_chart: bool = False,
-    ) -> Dict[str, Any]:
     ) -> tuple[Dict[str, Any], LLMUsage]:
         messages = self._build_plan_request_messages(
             question=question,
